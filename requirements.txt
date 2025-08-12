@@ -1,3 +1,0 @@
-tkinter
-sqlite3
-datetime

@@ -148,7 +148,8 @@ class InterestCalculator {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to save investment');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
             }
 
             this.showModal('Investment added successfully! Add an ending date to calculate interest.', 'success');
@@ -164,7 +165,7 @@ class InterestCalculator {
 
         } catch (error) {
             console.error('Add investment error:', error);
-            this.showModal('An error occurred. Please check your inputs.', 'error');
+            this.showModal(`Add investment error: ${error.message}`, 'error');
         }
     }
 
@@ -263,7 +264,8 @@ class InterestCalculator {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to update investment');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
             }
 
             // Update results display
@@ -285,7 +287,7 @@ class InterestCalculator {
 
         } catch (error) {
             console.error('Calculation error:', error);
-            this.showModal('An error occurred during calculation. Please check your inputs.', 'error');
+            this.showModal(`Calculation error: ${error.message}`, 'error');
         }
     }
 
@@ -308,14 +310,15 @@ class InterestCalculator {
         try {
             const response = await fetch(`${this.apiBaseUrl}/investments`);
             if (!response.ok) {
-                throw new Error('Failed to load investments');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
             }
 
             this.history = await response.json();
             this.displayHistory();
         } catch (error) {
             console.error('Error loading history:', error);
-            this.showModal('Failed to load investment history.', 'error');
+            this.showModal(`Failed to load history: ${error.message}`, 'error');
         }
     }
 

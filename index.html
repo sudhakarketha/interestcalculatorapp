@@ -20,7 +20,7 @@
         <main class="main-content">
             <div class="calculator-section">
                 <div class="input-form">
-                    <h2>Enter Investment Details</h2>
+                    <h2>Add New Investment</h2>
 
                     <div class="form-group">
                         <label for="name">Name:</label>
@@ -42,20 +42,9 @@
                         <input type="date" id="startDate" required>
                     </div>
 
-                    <!-- Step 2: Ending Date (initially hidden) -->
-                    <div class="form-group" id="endDateContainer" style="display:none;">
-                        <label for="endDate">Ending Date:</label>
-                        <input type="date" id="endDate">
-                    </div>
-
-                    <div class="form-row" style="grid-template-columns: 1fr; gap: 12px;">
-                        <button type="button" id="nextBtn" class="calculate-btn">
-                            <i class="fas fa-arrow-right"></i> Next (Add Ending Date)
-                        </button>
-                        <button type="button" id="calculateBtn" class="calculate-btn" style="display:none;">
-                            <i class="fas fa-calculator"></i> Calculate Interest
-                        </button>
-                    </div>
+                    <button type="button" id="addInvestmentBtn" class="calculate-btn">
+                        <i class="fas fa-plus"></i> Add Investment
+                    </button>
                 </div>
 
                 <div class="results-section">
@@ -105,7 +94,7 @@
             </div>
 
             <div class="history-section">
-                <h2>Calculation History</h2>
+                <h2>Investment History</h2>
                 <div class="history-controls">
                     <button type="button" id="clearHistoryBtn" class="clear-btn">
                         <i class="fas fa-trash"></i> Clear History
@@ -126,7 +115,7 @@
                                 <th>Months</th>
                                 <th>Simple Interest</th>
                                 <th>Compound Interest</th>
-                                <th>Date</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="historyTableBody">
@@ -142,6 +131,35 @@
         </footer>
     </div>
 
+    <!-- Edit Investment Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>Edit Investment</h3>
+            <div class="edit-form">
+                <div class="form-group">
+                    <label>Name: <span id="editName"></span></label>
+                </div>
+                <div class="form-group">
+                    <label>Principal: <span id="editPrincipal"></span></label>
+                </div>
+                <div class="form-group">
+                    <label>Rate: <span id="editRate"></span></label>
+                </div>
+                <div class="form-group">
+                    <label>Start Date: <span id="editStartDate"></span></label>
+                </div>
+                <div class="form-group">
+                    <label for="editEndDate">Ending Date:</label>
+                    <input type="date" id="editEndDate" required>
+                </div>
+                <button type="button" id="calculateBtn" class="calculate-btn">
+                    <i class="fas fa-calculator"></i> Calculate Interest
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Success/Error Modal -->
     <div id="modal" class="modal">
         <div class="modal-content">
@@ -150,9 +168,7 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="script_new.js"></script>
 </body>
-
-</html>
 
 </html>

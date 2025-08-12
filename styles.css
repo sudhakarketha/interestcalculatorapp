@@ -146,6 +146,24 @@ body {
     margin-right: 10px;
 }
 
+/* Edit Button */
+.edit-btn {
+    padding: 8px 16px;
+    background: #4299e1;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.edit-btn:hover {
+    background: #3182ce;
+    transform: translateY(-1px);
+}
+
 /* Results Section */
 .results-section h2 {
     color: #2d3748;
@@ -322,6 +340,34 @@ body {
     text-align: center;
     position: relative;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-content h3 {
+    color: #2d3748;
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.edit-form {
+    text-align: left;
+}
+
+.edit-form .form-group {
+    margin-bottom: 20px;
+}
+
+.edit-form .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #4a5568;
+}
+
+.edit-form .form-group label span {
+    font-weight: 400;
+    color: #2d3748;
+    margin-left: 10px;
 }
 
 .close {

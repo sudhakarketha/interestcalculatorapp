@@ -25,32 +25,41 @@ def _read_mysql_config_from_env():
     3) Local defaults
     """
     database_url = os.environ.get('DATABASE_URL')
+    print(f"DATABASE_URL from env: {database_url}")
+    
     if database_url:
         try:
             parsed = urlparse(database_url)
+            print(f"Parsed DATABASE_URL: hostname={parsed.hostname}, username={parsed.username}, path={parsed.path}, port={parsed.port}")
             # Some providers prefix with mysql://
-            return {
+            config = {
                 'host': parsed.hostname or 'localhost',
                 'user': parsed.username or 'root',
                 'password': parsed.password or '',
                 'database': (parsed.path[1:] if parsed.path and len(parsed.path) > 1 else ''),
                 'port': int(parsed.port or 3306),
             }
+            print(f"Using DATABASE_URL config: {config}")
+            return config
         except Exception as parse_error:
             print(f"Failed to parse DATABASE_URL: {parse_error}")
+    
     # Fallback to individual env vars
-    return {
+    config = {
         'host': os.environ.get('MYSQL_ADDON_HOST', 'localhost'),
         'user': os.environ.get('MYSQL_ADDON_USER', 'root'),
         'password': os.environ.get('MYSQL_ADDON_PASSWORD', ''),
         'database': os.environ.get('MYSQL_ADDON_DB', 'interest_calculator'),
         'port': int(os.environ.get('MYSQL_ADDON_PORT', 3306)),
     }
+    print(f"Using fallback config: {config}")
+    return config
 
 
 def get_db_connection():
     try:
         cfg = _read_mysql_config_from_env()
+        print(f"Attempting database connection with config: host={cfg['host']}, user={cfg['user']}, database={cfg['database']}, port={cfg['port']}")
         connection = mysql.connector.connect(
             host=cfg['host'],
             user=cfg['user'],
@@ -58,6 +67,7 @@ def get_db_connection():
             database=cfg['database'],
             port=int(cfg['port'])
         )
+        print("Database connection successful")
         return connection
     except Exception as e:
         print(f"Database connection error: {e}")
@@ -212,12 +222,15 @@ def add_investment():
 
 @app.route('/api/investments/<int:investment_id>', methods=['PUT'])
 def update_investment(investment_id):
+    print(f"PUT /api/investments/{investment_id} - Starting update")
     connection = get_db_connection()
     if not connection:
+        print(f"PUT /api/investments/{investment_id} - Database connection failed")
         return jsonify({'error': 'Database connection failed'}), 500
     
     try:
         data = request.json
+        print(f"PUT /api/investments/{investment_id} - Request data: {data}")
         cursor = connection.cursor()
         
         cursor.execute('''
@@ -241,11 +254,12 @@ def update_investment(investment_id):
         cursor.close()
         connection.close()
         
+        print(f"PUT /api/investments/{investment_id} - Update successful")
         return jsonify({'message': 'Investment updated successfully'})
     
     except Exception as e:
-        print(f"Error updating investment: {e}")
-        return jsonify({'error': 'Failed to update investment'}), 500
+        print(f"PUT /api/investments/{investment_id} - Error updating investment: {e}")
+        return jsonify({'error': f'Failed to update investment: {str(e)}'}), 500
 
 @app.route('/api/investments', methods=['DELETE'])
 def clear_investments():

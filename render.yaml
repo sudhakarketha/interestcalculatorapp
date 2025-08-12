@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: interest-calculator
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -b 0.0.0.0:$PORT app:app
+    autoDeploy: true
+    envVars:
+      - key: MYSQL_ADDON_HOST
+        sync: false
+      - key: MYSQL_ADDON_USER
+        sync: false
+      - key: MYSQL_ADDON_PASSWORD
+        sync: false
+      - key: MYSQL_ADDON_DB
+        sync: false
+      - key: MYSQL_ADDON_PORT
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.11.9

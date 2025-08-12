@@ -4,6 +4,7 @@ import mysql.connector
 import os
 from datetime import datetime
 import json
+from urllib.parse import urlparse
 
 # Import configuration for local testing
 try:
@@ -14,16 +15,48 @@ except ImportError:
 app = Flask(__name__)
 CORS(app)
 
-# Database configuration for Clever Cloud
+# Database configuration (supports DATABASE_URL or MYSQL_* vars)
+def _read_mysql_config_from_env():
+    """Return a dict with MySQL connection params from env vars.
+
+    Priority:
+    1) DATABASE_URL (e.g. mysql://user:pass@host:3306/db)
+    2) MYSQL_ADDON_* variables (Clever Cloud style)
+    3) Local defaults
+    """
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url:
+        try:
+            parsed = urlparse(database_url)
+            # Some providers prefix with mysql://
+            return {
+                'host': parsed.hostname or 'localhost',
+                'user': parsed.username or 'root',
+                'password': parsed.password or '',
+                'database': (parsed.path[1:] if parsed.path and len(parsed.path) > 1 else ''),
+                'port': int(parsed.port or 3306),
+            }
+        except Exception as parse_error:
+            print(f"Failed to parse DATABASE_URL: {parse_error}")
+    # Fallback to individual env vars
+    return {
+        'host': os.environ.get('MYSQL_ADDON_HOST', 'localhost'),
+        'user': os.environ.get('MYSQL_ADDON_USER', 'root'),
+        'password': os.environ.get('MYSQL_ADDON_PASSWORD', ''),
+        'database': os.environ.get('MYSQL_ADDON_DB', 'interest_calculator'),
+        'port': int(os.environ.get('MYSQL_ADDON_PORT', 3306)),
+    }
+
+
 def get_db_connection():
     try:
-        # Clever Cloud MySQL configuration
+        cfg = _read_mysql_config_from_env()
         connection = mysql.connector.connect(
-            host=os.environ.get('MYSQL_ADDON_HOST', 'localhost'),
-            user=os.environ.get('MYSQL_ADDON_USER', 'root'),
-            password=os.environ.get('MYSQL_ADDON_PASSWORD', ''),
-            database=os.environ.get('MYSQL_ADDON_DB', 'interest_calculator'),
-            port=int(os.environ.get('MYSQL_ADDON_PORT', 3306))
+            host=cfg['host'],
+            user=cfg['user'],
+            password=cfg['password'],
+            database=cfg['database'],
+            port=int(cfg['port'])
         )
         return connection
     except Exception as e:

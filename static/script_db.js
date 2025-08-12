@@ -231,18 +231,18 @@ class InterestCalculator {
             }
 
             // Calculate months between dates
-            const months = this.monthsBetween(investment.start_date, endDate);
+            const months = Math.round(this.monthsBetween(investment.start_date, endDate) * 100) / 100;
             if (months <= 0) {
                 this.showModal('The period must be at least part of a month.', 'error');
                 return;
             }
 
             // Calculate interest using monthly rate
-            const simpleInterest = investment.principal * (investment.rate / 100) * months;
-            const compoundInterest = investment.principal * (Math.pow(1 + investment.rate / 100, months) - 1);
+            const simpleInterest = Math.round((investment.principal * (investment.rate / 100) * months) * 100) / 100;
+            const compoundInterest = Math.round((investment.principal * (Math.pow(1 + investment.rate / 100, months) - 1)) * 100) / 100;
 
-            const totalSimple = investment.principal + simpleInterest;
-            const totalCompound = investment.principal + compoundInterest;
+            const totalSimple = Math.round((investment.principal + simpleInterest) * 100) / 100;
+            const totalCompound = Math.round((investment.principal + compoundInterest) * 100) / 100;
 
             // Update in database
             const updateData = {

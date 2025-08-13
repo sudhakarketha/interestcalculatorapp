@@ -11,7 +11,7 @@ class InterestCalculator {
         this.setupEventListeners();
         this.setDefaultDate();
         this.loadHistory();
-        this.updateResults(null, null); // Clear results initially
+        // Don't clear results initially - will be set after loading history
     }
 
     setupEventListeners() {
@@ -302,6 +302,8 @@ class InterestCalculator {
     }
 
     updateResults(results = null, selectedInvestment = null) {
+        console.log('updateResults called with:', { results, selectedInvestment }); // Debug log
+
         if (results && selectedInvestment) {
             // Show calculated results for a specific investment
             document.getElementById('simpleInterest').textContent = this.formatCurrency(results.simpleInterest);
@@ -325,13 +327,56 @@ class InterestCalculator {
             document.getElementById('totalSimple').textContent = this.formatCurrency(totalSimple);
             document.getElementById('totalCompound').textContent = this.formatCurrency(totalCompound);
             document.getElementById('totalAmount').textContent = this.formatCurrency(totalSimple);
-        } else {
-            // Reset to default values when no investment is selected
+        } else if (selectedInvestment && !selectedInvestment.end_date) {
+            // Show only principal for investments without end date
             document.getElementById('simpleInterest').textContent = this.formatCurrency(0);
             document.getElementById('compoundInterest').textContent = this.formatCurrency(0);
-            document.getElementById('totalSimple').textContent = this.formatCurrency(0);
-            document.getElementById('totalCompound').textContent = this.formatCurrency(0);
-            document.getElementById('totalAmount').textContent = this.formatCurrency(0);
+            document.getElementById('totalSimple').textContent = this.formatCurrency(selectedInvestment.principal);
+            document.getElementById('totalCompound').textContent = this.formatCurrency(selectedInvestment.principal);
+            document.getElementById('totalAmount').textContent = this.formatCurrency(selectedInvestment.principal);
+        } else {
+            // Show combined results from all investments
+            this.updateResultsForAllInvestments();
+        }
+    }
+
+    updateResultsForAllInvestments() {
+        // Calculate combined totals from all investments
+        let totalSimpleInterest = 0;
+        let totalCompoundInterest = 0;
+        let totalSimple = 0;
+        let totalCompound = 0;
+        let totalPrincipal = 0;
+
+        this.history.forEach(inv => {
+            const simpleInterest = parseFloat(inv.simple_interest) || 0;
+            const compoundInterest = parseFloat(inv.compound_interest) || 0;
+            const totalSimpleInv = parseFloat(inv.total_simple) || inv.principal;
+            const totalCompoundInv = parseFloat(inv.total_compound) || inv.principal;
+
+            totalSimpleInterest += simpleInterest;
+            totalCompoundInterest += compoundInterest;
+            totalSimple += totalSimpleInv;
+            totalCompound += totalCompoundInv;
+            totalPrincipal += inv.principal;
+        });
+
+        // Display combined results
+        document.getElementById('simpleInterest').textContent = this.formatCurrency(totalSimpleInterest);
+        document.getElementById('compoundInterest').textContent = this.formatCurrency(totalCompoundInterest);
+        document.getElementById('totalSimple').textContent = this.formatCurrency(totalSimple);
+        document.getElementById('totalCompound').textContent = this.formatCurrency(totalCompound);
+        document.getElementById('totalAmount').textContent = this.formatCurrency(totalSimple);
+
+        // Show info about all investments
+        const infoDiv = document.getElementById('selectedInvestmentInfo');
+        const nameSpan = document.getElementById('selectedInvestmentName');
+        const detailsSpan = document.getElementById('selectedInvestmentDetails');
+
+        if (infoDiv && nameSpan && detailsSpan) {
+            nameSpan.textContent = `All Investments (${this.history.length} total)`;
+            detailsSpan.textContent = `Combined results from all investments in the portfolio`;
+            infoDiv.style.display = 'block';
         }
     }
 
@@ -345,6 +390,8 @@ class InterestCalculator {
 
             this.history = await response.json();
             this.displayHistory();
+            // Show combined results from all investments initially
+            this.updateResultsForAllInvestments();
         } catch (error) {
             console.error('Error loading history:', error);
             this.showModal(`Failed to load history: ${error.message}`, 'error');
@@ -376,7 +423,16 @@ class InterestCalculator {
 
             // Make rows clickable to select investment and show results
             row.style.cursor = 'pointer';
-            row.onclick = () => this.selectInvestment(inv);
+            row.onclick = (e) => {
+                console.log('Row clicked for investment:', inv.name); // Debug log
+                this.selectInvestment(inv);
+            };
+
+            // Double-click to deselect and show all investments
+            row.ondblclick = (e) => {
+                console.log('Row double-clicked - deselecting'); // Debug log
+                this.deselectInvestment();
+            };
 
             // Add hover effect
             row.onmouseenter = () => {
@@ -419,7 +475,10 @@ class InterestCalculator {
                 const editBtn = document.createElement('button');
                 editBtn.textContent = 'Edit & Calculate';
                 editBtn.className = 'edit-btn';
-                editBtn.onclick = () => this.editInvestment(inv.id);
+                editBtn.onclick = (e) => {
+                    e.stopPropagation(); // Prevent row click when clicking edit
+                    this.editInvestment(inv.id);
+                };
                 actionsContainer.appendChild(editBtn);
             } else {
                 // Show green checkmark for calculated investments
@@ -442,7 +501,10 @@ class InterestCalculator {
             deleteIcon.style.borderRadius = '4px';
             deleteIcon.style.transition = 'all 0.2s ease';
             deleteIcon.title = 'Delete Investment';
-            deleteIcon.onclick = () => this.deleteInvestment(inv.id, inv.name);
+            deleteIcon.onclick = (e) => {
+                e.stopPropagation(); // Prevent row click when clicking delete
+                this.deleteInvestment(inv.id, inv.name);
+            };
 
             // Hover effects
             deleteIcon.onmouseenter = () => {
@@ -461,6 +523,8 @@ class InterestCalculator {
     }
 
     selectInvestment(investment) {
+        console.log('selectInvestment called for:', investment.name); // Debug log
+
         // Highlight the selected row
         const tbody = document.getElementById('historyTableBody');
         const rows = tbody.querySelectorAll('tr');
@@ -489,9 +553,9 @@ class InterestCalculator {
 
         // Show a brief message about what's displayed
         if (investment.end_date) {
-            this.showModal(`Showing results for "${investment.name}" - ${investment.months} months`, 'info');
+            this.showModal(`Showing results for "${investment.name}" - ${investment.months} months (Double-click to show all investments)`, 'info');
         } else {
-            this.showModal(`Selected "${investment.name}" - Add end date to calculate interest`, 'info');
+            this.showModal(`Selected "${investment.name}" - Add end date to calculate interest (Double-click to show all investments)`, 'info');
         }
     }
 
@@ -514,6 +578,23 @@ class InterestCalculator {
         } else {
             infoDiv.style.display = 'none';
         }
+    }
+
+    deselectInvestment() {
+        // Remove highlighting from all rows
+        const tbody = document.getElementById('historyTableBody');
+        const rows = tbody.querySelectorAll('tr');
+
+        rows.forEach(row => {
+            row.style.backgroundColor = '';
+            row.style.borderLeft = '';
+        });
+
+        // Show combined results from all investments
+        this.updateResultsForAllInvestments();
+
+        // Show a brief message
+        this.showModal('Showing combined results from all investments', 'info');
     }
 
     async deleteInvestment(investmentId, investmentName) {

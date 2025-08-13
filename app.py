@@ -261,6 +261,28 @@ def update_investment(investment_id):
         print(f"PUT /api/investments/{investment_id} - Error updating investment: {e}")
         return jsonify({'error': f'Failed to update investment: {str(e)}'}), 500
 
+@app.route('/api/investments/<int:investment_id>', methods=['DELETE'])
+def delete_investment(investment_id):
+    print(f"DELETE /api/investments/{investment_id} - Starting delete")
+    connection = get_db_connection()
+    if not connection:
+        print(f"DELETE /api/investments/{investment_id} - Database connection failed")
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    try:
+        cursor = connection.cursor()
+        cursor.execute('DELETE FROM investments WHERE id = %s', (investment_id,))
+        connection.commit()
+        cursor.close()
+        connection.close()
+        
+        print(f"DELETE /api/investments/{investment_id} - Delete successful")
+        return jsonify({'message': 'Investment deleted successfully'})
+    
+    except Exception as e:
+        print(f"DELETE /api/investments/{investment_id} - Error deleting investment: {e}")
+        return jsonify({'error': f'Failed to delete investment: {str(e)}'}), 500
+
 @app.route('/api/investments', methods=['DELETE'])
 def clear_investments():
     connection = get_db_connection()
@@ -294,10 +316,13 @@ def export_csv():
         csv_data = []
         headers = ['Name', 'Principal', 'Rate (% per month)', 'Start Date', 'End Date', 
                   'Months', 'Simple Interest', 'Compound Interest', 'Total (Simple)', 
-                  'Total (Compound)', 'Calculation Date']
+                  'Total (Compound)', 'Total Amount', 'Calculation Date']
         csv_data.append(','.join(headers))
         
         for inv in investments:
+            # Calculate Total Amount (Principal + Simple Interest)
+            total_amount = inv['principal'] + (inv['simple_interest'] or 0)
+            
             row = [
                 f'"{inv["name"]}"',
                 str(inv['principal']),
@@ -309,6 +334,7 @@ def export_csv():
                 str(inv['compound_interest']) if inv['compound_interest'] > 0 else '',
                 str(inv['total_simple']),
                 str(inv['total_compound']),
+                str(total_amount),
                 f'"{inv["calculation_date"]}"' if inv['calculation_date'] else ''
             ]
             csv_data.append(','.join(row))

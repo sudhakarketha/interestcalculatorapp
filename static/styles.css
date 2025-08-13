@@ -164,6 +164,24 @@ body {
     transform: translateY(-1px);
 }
 
+/* Delete Button */
+.delete-btn {
+    padding: 8px 16px;
+    background: #e53e3e;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.delete-btn:hover {
+    background: #c53030;
+    transform: translateY(-1px);
+}
+
 /* Results Section */
 .results-section h2 {
     color: #2d3748;
@@ -174,13 +192,18 @@ body {
 
 .results-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 20px;
 }
 
 @media (max-width: 480px) {
     .results-grid {
         grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .result-card {
+        padding: 20px;
     }
 }
 

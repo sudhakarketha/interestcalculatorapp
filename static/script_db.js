@@ -297,12 +297,17 @@ class InterestCalculator {
             document.getElementById('compoundInterest').textContent = this.formatCurrency(results.compoundInterest);
             document.getElementById('totalSimple').textContent = this.formatCurrency(results.totalSimple);
             document.getElementById('totalCompound').textContent = this.formatCurrency(results.totalCompound);
+
+            // Calculate and display total amount (principal + simple interest)
+            const totalAmount = results.totalSimple;
+            document.getElementById('totalAmount').textContent = this.formatCurrency(totalAmount);
         } else {
             // Reset to default values
             document.getElementById('simpleInterest').textContent = '$0.00';
             document.getElementById('compoundInterest').textContent = '$0.00';
             document.getElementById('totalSimple').textContent = '$0.00';
             document.getElementById('totalCompound').textContent = '$0.00';
+            document.getElementById('totalAmount').textContent = '$0.00';
         }
     }
 
@@ -329,7 +334,7 @@ class InterestCalculator {
         if (this.history.length === 0) {
             const row = tbody.insertRow();
             const cell = row.insertCell(0);
-            cell.colSpan = 9;
+            cell.colSpan = 10;
             cell.textContent = 'No investments yet. Start by adding an investment!';
             cell.style.textAlign = 'center';
             cell.style.color = '#a0aec0';
@@ -359,8 +364,19 @@ class InterestCalculator {
             row.insertCell(6).textContent = simpleInterest > 0 ? this.formatCurrency(simpleInterest) : '-';
             row.insertCell(7).textContent = compoundInterest > 0 ? this.formatCurrency(compoundInterest) : '-';
 
+            // Total Amount column (Principal + Simple Interest)
+            const totalAmount = months > 0 ? (inv.principal + simpleInterest) : inv.principal;
+            row.insertCell(8).textContent = this.formatCurrency(totalAmount);
+
             // Actions cell
-            const actionsCell = row.insertCell(8);
+            const actionsCell = row.insertCell(9);
+
+            // Create actions container
+            const actionsContainer = document.createElement('div');
+            actionsContainer.style.display = 'flex';
+            actionsContainer.style.gap = '8px';
+            actionsContainer.style.flexWrap = 'wrap';
+
             // Check if end_date exists and is not null/empty
             if (!inv.end_date || inv.end_date === null || inv.end_date === '') {
                 // Show Edit button for investments without end date
@@ -368,14 +384,55 @@ class InterestCalculator {
                 editBtn.textContent = 'Edit & Calculate';
                 editBtn.className = 'edit-btn';
                 editBtn.onclick = () => this.editInvestment(inv.id);
-                actionsCell.appendChild(editBtn);
+                actionsContainer.appendChild(editBtn);
             } else {
                 // Show calculated status
-                actionsCell.textContent = 'Calculated';
-                actionsCell.style.color = '#2f855a';
-                actionsCell.style.fontWeight = '500';
+                const calculatedSpan = document.createElement('span');
+                calculatedSpan.textContent = 'Calculated';
+                calculatedSpan.style.color = '#2f855a';
+                calculatedSpan.style.fontWeight = '500';
+                calculatedSpan.style.marginRight = '8px';
+                actionsContainer.appendChild(calculatedSpan);
             }
+
+            // Add delete button for all investments
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = 'Delete';
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.style.backgroundColor = '#e53e3e';
+            deleteBtn.style.color = 'white';
+            deleteBtn.style.border = 'none';
+            deleteBtn.style.padding = '6px 12px';
+            deleteBtn.style.borderRadius = '4px';
+            deleteBtn.style.cursor = 'pointer';
+            deleteBtn.onclick = () => this.deleteInvestment(inv.id, inv.name);
+            actionsContainer.appendChild(deleteBtn);
+
+            actionsCell.appendChild(actionsContainer);
         });
+    }
+
+    async deleteInvestment(investmentId, investmentName) {
+        if (confirm(`Are you sure you want to delete the investment "${investmentName}"? This action cannot be undone.`)) {
+            try {
+                const response = await fetch(`${this.apiBaseUrl}/investments/${investmentId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                // Remove from local history
+                this.history = this.history.filter(inv => inv.id !== investmentId);
+                this.displayHistory();
+                this.showModal(`Investment "${investmentName}" deleted successfully!`, 'success');
+            } catch (error) {
+                console.error('Error deleting investment:', error);
+                this.showModal(`Failed to delete investment: ${error.message}`, 'error');
+            }
+        }
     }
 
     async clearHistory() {

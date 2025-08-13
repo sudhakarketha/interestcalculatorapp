@@ -337,6 +337,11 @@ class InterestCalculator {
             return;
         }
 
+        // Debug: Log the first investment to see data structure
+        if (this.history.length > 0) {
+            console.log('First investment data:', this.history[0]);
+        }
+
         this.history.forEach(inv => {
             const row = tbody.insertRow();
 
@@ -345,13 +350,19 @@ class InterestCalculator {
             row.insertCell(2).textContent = `${inv.rate}%/month`;
             row.insertCell(3).textContent = inv.start_date;
             row.insertCell(4).textContent = inv.end_date || '-';
-            row.insertCell(5).textContent = inv.months > 0 ? inv.months.toFixed(2) : '-';
-            row.insertCell(6).textContent = inv.simple_interest > 0 ? this.formatCurrency(inv.simple_interest) : '-';
-            row.insertCell(7).textContent = inv.compound_interest > 0 ? this.formatCurrency(inv.compound_interest) : '-';
+            // Ensure numeric values and handle null/undefined
+            const months = parseFloat(inv.months) || 0;
+            const simpleInterest = parseFloat(inv.simple_interest) || 0;
+            const compoundInterest = parseFloat(inv.compound_interest) || 0;
+
+            row.insertCell(5).textContent = months > 0 ? months.toFixed(2) : '-';
+            row.insertCell(6).textContent = simpleInterest > 0 ? this.formatCurrency(simpleInterest) : '-';
+            row.insertCell(7).textContent = compoundInterest > 0 ? this.formatCurrency(compoundInterest) : '-';
 
             // Actions cell
             const actionsCell = row.insertCell(8);
-            if (!inv.end_date) {
+            // Check if end_date exists and is not null/empty
+            if (!inv.end_date || inv.end_date === null || inv.end_date === '') {
                 // Show Edit button for investments without end date
                 const editBtn = document.createElement('button');
                 editBtn.textContent = 'Edit & Calculate';

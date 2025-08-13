@@ -182,6 +182,15 @@ body {
     transform: translateY(-1px);
 }
 
+/* Delete Icon */
+.delete-icon {
+    transition: all 0.2s ease;
+}
+
+.delete-icon:hover {
+    color: #c53030 !important;
+}
+
 /* Results Section */
 .results-section h2 {
     color: #2d3748;

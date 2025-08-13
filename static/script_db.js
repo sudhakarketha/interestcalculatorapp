@@ -386,27 +386,39 @@ class InterestCalculator {
                 editBtn.onclick = () => this.editInvestment(inv.id);
                 actionsContainer.appendChild(editBtn);
             } else {
-                // Show calculated status
-                const calculatedSpan = document.createElement('span');
-                calculatedSpan.textContent = 'Calculated';
-                calculatedSpan.style.color = '#2f855a';
-                calculatedSpan.style.fontWeight = '500';
-                calculatedSpan.style.marginRight = '8px';
-                actionsContainer.appendChild(calculatedSpan);
+                // Show green checkmark for calculated investments
+                const checkmarkSpan = document.createElement('span');
+                checkmarkSpan.innerHTML = '✓';
+                checkmarkSpan.style.color = '#22c55e';
+                checkmarkSpan.style.fontSize = '18px';
+                checkmarkSpan.style.fontWeight = 'bold';
+                checkmarkSpan.style.marginRight = '8px';
+                actionsContainer.appendChild(checkmarkSpan);
             }
 
-            // Add delete button for all investments
-            const deleteBtn = document.createElement('button');
-            deleteBtn.textContent = 'Delete';
-            deleteBtn.className = 'delete-btn';
-            deleteBtn.style.backgroundColor = '#e53e3e';
-            deleteBtn.style.color = 'white';
-            deleteBtn.style.border = 'none';
-            deleteBtn.style.padding = '6px 12px';
-            deleteBtn.style.borderRadius = '4px';
-            deleteBtn.style.cursor = 'pointer';
-            deleteBtn.onclick = () => this.deleteInvestment(inv.id, inv.name);
-            actionsContainer.appendChild(deleteBtn);
+            // Add delete icon for all investments
+            const deleteIcon = document.createElement('i');
+            deleteIcon.className = 'fas fa-trash delete-icon';
+            deleteIcon.style.color = '#e53e3e';
+            deleteIcon.style.cursor = 'pointer';
+            deleteIcon.style.fontSize = '16px';
+            deleteIcon.style.padding = '8px';
+            deleteIcon.style.borderRadius = '4px';
+            deleteIcon.style.transition = 'all 0.2s ease';
+            deleteIcon.title = 'Delete Investment';
+            deleteIcon.onclick = () => this.deleteInvestment(inv.id, inv.name);
+
+            // Hover effects
+            deleteIcon.onmouseenter = () => {
+                deleteIcon.style.backgroundColor = '#fed7d7';
+                deleteIcon.style.transform = 'scale(1.1)';
+            };
+            deleteIcon.onmouseleave = () => {
+                deleteIcon.style.backgroundColor = 'transparent';
+                deleteIcon.style.transform = 'scale(1)';
+            };
+
+            actionsContainer.appendChild(deleteIcon);
 
             actionsCell.appendChild(actionsContainer);
         });

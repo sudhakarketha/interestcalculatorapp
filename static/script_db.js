@@ -11,7 +11,7 @@ class InterestCalculator {
         this.setupEventListeners();
         this.setDefaultDate();
         this.loadHistory();
-        this.updateResults();
+        this.updateResults(null, null); // Clear results initially
     }
 
     setupEventListeners() {
@@ -268,13 +268,23 @@ class InterestCalculator {
                 throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
             }
 
-            // Update results display
+            // Update results display with the calculated investment
+            const updatedInvestment = {
+                ...investment,
+                end_date: endDate,
+                months: months,
+                simple_interest: simpleInterest,
+                compound_interest: compoundInterest,
+                total_simple: totalSimple,
+                total_compound: totalCompound
+            };
+
             this.updateResults({
                 simpleInterest: simpleInterest,
                 compoundInterest: compoundInterest,
                 totalSimple: totalSimple,
                 totalCompound: totalCompound
-            });
+            }, updatedInvestment);
 
             // Reload history
             await this.loadHistory();
@@ -291,8 +301,9 @@ class InterestCalculator {
         }
     }
 
-    updateResults(results = null) {
-        if (results) {
+    updateResults(results = null, selectedInvestment = null) {
+        if (results && selectedInvestment) {
+            // Show calculated results for a specific investment
             document.getElementById('simpleInterest').textContent = this.formatCurrency(results.simpleInterest);
             document.getElementById('compoundInterest').textContent = this.formatCurrency(results.compoundInterest);
             document.getElementById('totalSimple').textContent = this.formatCurrency(results.totalSimple);
@@ -301,13 +312,26 @@ class InterestCalculator {
             // Calculate and display total amount (principal + simple interest)
             const totalAmount = results.totalSimple;
             document.getElementById('totalAmount').textContent = this.formatCurrency(totalAmount);
+        } else if (selectedInvestment && selectedInvestment.end_date) {
+            // Show existing calculated results from database
+            const months = parseFloat(selectedInvestment.months) || 0;
+            const simpleInterest = parseFloat(selectedInvestment.simple_interest) || 0;
+            const compoundInterest = parseFloat(selectedInvestment.compound_interest) || 0;
+            const totalSimple = parseFloat(selectedInvestment.total_simple) || selectedInvestment.principal;
+            const totalCompound = parseFloat(selectedInvestment.total_compound) || selectedInvestment.principal;
+
+            document.getElementById('simpleInterest').textContent = this.formatCurrency(simpleInterest);
+            document.getElementById('compoundInterest').textContent = this.formatCurrency(compoundInterest);
+            document.getElementById('totalSimple').textContent = this.formatCurrency(totalSimple);
+            document.getElementById('totalCompound').textContent = this.formatCurrency(totalCompound);
+            document.getElementById('totalAmount').textContent = this.formatCurrency(totalSimple);
         } else {
-            // Reset to default values
-            document.getElementById('simpleInterest').textContent = '$0.00';
-            document.getElementById('compoundInterest').textContent = '$0.00';
-            document.getElementById('totalSimple').textContent = '$0.00';
-            document.getElementById('totalCompound').textContent = '$0.00';
-            document.getElementById('totalAmount').textContent = '$0.00';
+            // Reset to default values when no investment is selected
+            document.getElementById('simpleInterest').textContent = this.formatCurrency(0);
+            document.getElementById('compoundInterest').textContent = this.formatCurrency(0);
+            document.getElementById('totalSimple').textContent = this.formatCurrency(0);
+            document.getElementById('totalCompound').textContent = this.formatCurrency(0);
+            document.getElementById('totalAmount').textContent = this.formatCurrency(0);
         }
     }
 
@@ -349,6 +373,18 @@ class InterestCalculator {
 
         this.history.forEach(inv => {
             const row = tbody.insertRow();
+
+            // Make rows clickable to select investment and show results
+            row.style.cursor = 'pointer';
+            row.onclick = () => this.selectInvestment(inv);
+
+            // Add hover effect
+            row.onmouseenter = () => {
+                row.style.backgroundColor = '#f7fafc';
+            };
+            row.onmouseleave = () => {
+                row.style.backgroundColor = '';
+            };
 
             row.insertCell(0).textContent = inv.name;
             row.insertCell(1).textContent = this.formatCurrency(inv.principal);
@@ -422,6 +458,62 @@ class InterestCalculator {
 
             actionsCell.appendChild(actionsContainer);
         });
+    }
+
+    selectInvestment(investment) {
+        // Highlight the selected row
+        const tbody = document.getElementById('historyTableBody');
+        const rows = tbody.querySelectorAll('tr');
+
+        rows.forEach(row => {
+            row.style.backgroundColor = '';
+            row.style.borderLeft = '';
+        });
+
+        // Find and highlight the clicked row
+        const clickedRow = Array.from(rows).find(row => {
+            const nameCell = row.cells[0];
+            return nameCell && nameCell.textContent === investment.name;
+        });
+
+        if (clickedRow) {
+            clickedRow.style.backgroundColor = '#e6f3ff';
+            clickedRow.style.borderLeft = '4px solid #667eea';
+        }
+
+        // Update results based on the selected investment
+        this.updateResults(null, investment);
+
+        // Update the selected investment info display
+        this.updateSelectedInvestmentInfo(investment);
+
+        // Show a brief message about what's displayed
+        if (investment.end_date) {
+            this.showModal(`Showing results for "${investment.name}" - ${investment.months} months`, 'info');
+        } else {
+            this.showModal(`Selected "${investment.name}" - Add end date to calculate interest`, 'info');
+        }
+    }
+
+    updateSelectedInvestmentInfo(investment) {
+        const infoDiv = document.getElementById('selectedInvestmentInfo');
+        const nameSpan = document.getElementById('selectedInvestmentName');
+        const detailsSpan = document.getElementById('selectedInvestmentDetails');
+
+        if (investment) {
+            nameSpan.textContent = investment.name;
+
+            if (investment.end_date) {
+                const months = parseFloat(investment.months) || 0;
+                detailsSpan.textContent = `Principal: ${this.formatCurrency(investment.principal)} | Rate: ${investment.rate}%/month | Period: ${months.toFixed(2)} months`;
+            } else {
+                detailsSpan.textContent = `Principal: ${this.formatCurrency(investment.principal)} | Rate: ${investment.rate}%/month | Start Date: ${investment.start_date}`;
+            }
+
+            infoDiv.style.display = 'block';
+        } else {
+            infoDiv.style.display = 'none';
+        }
     }
 
     async deleteInvestment(investmentId, investmentName) {
@@ -518,9 +610,7 @@ class InterestCalculator {
     }
 
     formatCurrency(amount) {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
+        return '₹' + new Intl.NumberFormat('en-IN', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
         }).format(amount);

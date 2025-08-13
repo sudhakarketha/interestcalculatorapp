@@ -4,143 +4,317 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interest Calculator</title>
+    <title>Interest Calculator - Smart Investment Planning</title>
     <link rel="stylesheet" href="static/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 
 <body>
-    <div class="container">
-        <header class="header">
-            <h1><i class="fas fa-calculator"></i> Interest Calculator</h1>
-            <p>Calculate simple and compound interest with ease</p>
-        </header>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <i class="fas fa-calculator"></i>
+                <span>InterestCalc</span>
+            </div>
+            <div class="nav-menu">
+                <a href="#home" class="nav-link">Home</a>
+                <a href="#features" class="nav-link">Features</a>
+                <a href="#calculator" class="nav-link">Calculator</a>
+                <a href="#about" class="nav-link">About</a>
+            </div>
+            <div class="nav-toggle">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+        </div>
+    </nav>
 
-        <main class="main-content">
-            <div class="calculator-section">
-                <div class="input-form">
-                    <h2>Add New Investment</h2>
+    <!-- Hero Section -->
+    <section id="home" class="hero">
+        <div class="hero-container">
+            <div class="hero-content">
+                <h1 class="hero-title">
+                    Smart <span class="highlight">Interest</span> Calculator
+                </h1>
+                <p class="hero-subtitle">
+                    Plan your investments with precision. Calculate simple and compound interest
+                    to make informed financial decisions for your future.
+                </p>
+                <div class="hero-buttons">
+                    <a href="#calculator" class="btn btn-primary">
+                        <i class="fas fa-calculator"></i> Start Calculating
+                    </a>
+                    <a href="#features" class="btn btn-secondary">
+                        <i class="fas fa-info-circle"></i> Learn More
+                    </a>
+                </div>
+            </div>
+            <div class="hero-image">
+                <div class="hero-card">
+                    <div class="card-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3>Investment Growth</h3>
+                    <p>Watch your money grow with compound interest</p>
+                </div>
+            </div>
+        </div>
+    </section>
 
-                    <div class="form-group">
-                        <label for="name">Name:</label>
-                        <input type="text" id="name" placeholder="Enter your name" required>
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <div class="container">
+            <div class="section-header">
+                <h2>Why Choose Our Calculator?</h2>
+                <p>Professional tools designed for smart investors</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <h3>Lightning Fast</h3>
+                    <p>Instant calculations with real-time updates and no waiting time</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h3>Secure & Private</h3>
+                    <p>Your financial data stays private with secure database storage</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-mobile-alt"></i>
+                    </div>
+                    <h3>Mobile Friendly</h3>
+                    <p>Works perfectly on all devices - desktop, tablet, and mobile</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-download"></i>
+                    </div>
+                    <h3>Export Data</h3>
+                    <p>Download your calculations as CSV for record keeping</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Calculator Section -->
+    <section id="calculator" class="calculator-section-main">
+        <div class="container">
+            <div class="section-header">
+                <h2>Interest Calculator</h2>
+                <p>Calculate simple and compound interest with ease</p>
+            </div>
+
+            <main class="main-content">
+                <div class="calculator-section">
+                    <div class="input-form">
+                        <h2>Add New Investment</h2>
+
+                        <div class="form-group">
+                            <label for="name">Name:</label>
+                            <input type="text" id="name" placeholder="Enter your name" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="principal">Principal Amount ($):</label>
+                            <input type="number" id="principal" placeholder="10000" min="0.01" step="0.01" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="rate">Interest Rate (% per month):</label>
+                            <input type="number" id="rate" placeholder="2.0" min="0" step="0.1" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="startDate">Start Date:</label>
+                            <input type="date" id="startDate" required>
+                        </div>
+
+                        <button type="button" id="addInvestmentBtn" class="calculate-btn">
+                            <i class="fas fa-plus"></i> Add Investment
+                        </button>
                     </div>
 
-                    <div class="form-group">
-                        <label for="principal">Principal Amount ($):</label>
-                        <input type="number" id="principal" placeholder="10000" min="0.01" step="0.01" required>
-                    </div>
+                    <div class="results-section">
+                        <h2>Calculation Results</h2>
+                        <div class="results-grid">
+                            <div class="result-card">
+                                <div class="result-icon">
+                                    <i class="fas fa-chart-line"></i>
+                                </div>
+                                <div class="result-content">
+                                    <h3>Simple Interest</h3>
+                                    <p class="result-value" id="simpleInterest">$0.00</p>
+                                </div>
+                            </div>
 
-                    <div class="form-group">
-                        <label for="rate">Interest Rate (% per month):</label>
-                        <input type="number" id="rate" placeholder="2.0" min="0" step="0.1" required>
-                    </div>
+                            <div class="result-card">
+                                <div class="result-icon">
+                                    <i class="fas fa-chart-area"></i>
+                                </div>
+                                <div class="result-content">
+                                    <h3>Compound Interest</h3>
+                                    <p class="result-value" id="compoundInterest">$0.00</p>
+                                </div>
+                            </div>
 
-                    <div class="form-group">
-                        <label for="startDate">Start Date:</label>
-                        <input type="date" id="startDate" required>
-                    </div>
+                            <div class="result-card">
+                                <div class="result-icon">
+                                    <i class="fas fa-dollar-sign"></i>
+                                </div>
+                                <div class="result-content">
+                                    <h3>Total (Simple)</h3>
+                                    <p class="result-value" id="totalSimple">$0.00</p>
+                                </div>
+                            </div>
 
-                    <button type="button" id="addInvestmentBtn" class="calculate-btn">
-                        <i class="fas fa-plus"></i> Add Investment
-                    </button>
+                            <div class="result-card">
+                                <div class="result-icon">
+                                    <i class="fas fa-coins"></i>
+                                </div>
+                                <div class="result-content">
+                                    <h3>Total (Compound)</h3>
+                                    <p class="result-value" id="totalCompound">$0.00</p>
+                                </div>
+                            </div>
+
+                            <div class="result-card">
+                                <div class="result-icon">
+                                    <i class="fas fa-calculator"></i>
+                                </div>
+                                <div class="result-content">
+                                    <h3>Total Amount</h3>
+                                    <p class="result-value" id="totalAmount">$0.00</p>
+                                    <small style="color: #666; font-size: 12px;">Principal + Simple Interest</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="results-section">
-                    <h2>Calculation Results</h2>
-                    <div class="results-grid">
-                        <div class="result-card">
-                            <div class="result-icon">
-                                <i class="fas fa-chart-line"></i>
-                            </div>
-                            <div class="result-content">
-                                <h3>Simple Interest</h3>
-                                <p class="result-value" id="simpleInterest">$0.00</p>
-                            </div>
-                        </div>
+                <div class="history-section">
+                    <h2>Investment History</h2>
+                    <div class="history-controls">
+                        <button type="button" id="clearHistoryBtn" class="clear-btn">
+                            <i class="fas fa-trash"></i> Clear History
+                        </button>
+                        <button type="button" id="exportBtn" class="export-btn">
+                            <i class="fas fa-download"></i> Export to CSV
+                        </button>
+                    </div>
+                    <div class="history-table-container">
+                        <table class="history-table" id="historyTable">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Principal</th>
+                                    <th>Rate</th>
+                                    <th>S Date</th>
+                                    <th>E Date</th>
+                                    <th>Months</th>
+                                    <th>S Interest</th>
+                                    <th>C Interest</th>
+                                    <th>Total Amount</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTableBody">
+                                <!-- History rows will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+    </section>
 
-                        <div class="result-card">
-                            <div class="result-icon">
-                                <i class="fas fa-chart-area"></i>
-                            </div>
-                            <div class="result-content">
-                                <h3>Compound Interest</h3>
-                                <p class="result-value" id="compoundInterest">$0.00</p>
-                            </div>
+    <!-- About Section -->
+    <section id="about" class="about">
+        <div class="container">
+            <div class="section-header">
+                <h2>About Interest Calculator</h2>
+                <p>Your trusted partner in financial planning</p>
+            </div>
+            <div class="about-content">
+                <div class="about-text">
+                    <h3>Professional Financial Tools</h3>
+                    <p>
+                        Our interest calculator provides accurate calculations for both simple and compound interest,
+                        helping you make informed investment decisions. Whether you're planning for retirement,
+                        saving for a major purchase, or managing your investment portfolio, our tools give you
+                        the insights you need.
+                    </p>
+                    <div class="about-features">
+                        <div class="about-feature">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Simple Interest Calculations</span>
                         </div>
-
-                        <div class="result-card">
-                            <div class="result-icon">
-                                <i class="fas fa-dollar-sign"></i>
-                            </div>
-                            <div class="result-content">
-                                <h3>Total (Simple)</h3>
-                                <p class="result-value" id="totalSimple">$0.00</p>
-                            </div>
+                        <div class="about-feature">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Compound Interest with Monthly Compounding</span>
                         </div>
-
-                        <div class="result-card">
-                            <div class="result-icon">
-                                <i class="fas fa-coins"></i>
-                            </div>
-                            <div class="result-content">
-                                <h3>Total (Compound)</h3>
-                                <p class="result-value" id="totalCompound">$0.00</p>
-                            </div>
+                        <div class="about-feature">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Investment History Tracking</span>
                         </div>
-
-                        <div class="result-card">
-                            <div class="result-icon">
-                                <i class="fas fa-calculator"></i>
-                            </div>
-                            <div class="result-content">
-                                <h3>Total Amount</h3>
-                                <p class="result-value" id="totalAmount">$0.00</p>
-                                <small style="color: #666; font-size: 12px;">Principal + Simple Interest</small>
-                            </div>
+                        <div class="about-feature">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Data Export & Backup</span>
                         </div>
+                    </div>
+                </div>
+                <div class="about-stats">
+                    <div class="stat-item">
+                        <div class="stat-number">100%</div>
+                        <div class="stat-label">Accurate</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">24/7</div>
+                        <div class="stat-label">Available</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">Free</div>
+                        <div class="stat-label">Forever</div>
                     </div>
                 </div>
             </div>
+        </div>
+    </section>
 
-            <div class="history-section">
-                <h2>Investment History</h2>
-                <div class="history-controls">
-                    <button type="button" id="clearHistoryBtn" class="clear-btn">
-                        <i class="fas fa-trash"></i> Clear History
-                    </button>
-                    <button type="button" id="exportBtn" class="export-btn">
-                        <i class="fas fa-download"></i> Export to CSV
-                    </button>
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3><i class="fas fa-calculator"></i> InterestCalc</h3>
+                    <p>Smart financial planning tools for everyone</p>
                 </div>
-                <div class="history-table-container">
-                    <table class="history-table" id="historyTable">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Principal</th>
-                                <th>Rate</th>
-                                <th>S Date</th>
-                                <th>E Date</th>
-                                <th>Months</th>
-                                <th>S Interest</th>
-                                <th>C Interest</th>
-                                <th>Total Amount</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="historyTableBody">
-                            <!-- History rows will be populated here -->
-                        </tbody>
-                    </table>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="#home">Home</a></li>
+                        <li><a href="#features">Features</a></li>
+                        <li><a href="#calculator">Calculator</a></li>
+                        <li><a href="#about">About</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Contact</h4>
+                    <p><i class="fas fa-envelope"></i> support@interestcalc.com</p>
+                    <p><i class="fas fa-globe"></i> www.interestcalc.com</p>
                 </div>
             </div>
-        </main>
-
-        <footer class="footer">
-            <p>&copy; 2024 Interest Calculator. Built with ❤️ using HTML, CSS & JavaScript</p>
-        </footer>
+            <div class="footer-bottom">
+                <p>&copy; 2024 InterestCalc. Built with ❤️ using HTML, CSS & JavaScript</p>
+            </div>
+        </div>
+    </footer>
     </div>
 
     <!-- Edit Investment Modal -->

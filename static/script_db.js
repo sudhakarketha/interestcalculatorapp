@@ -149,6 +149,7 @@ class InterestCalculator {
             const principal = parseFloat(document.getElementById('principal').value);
             const rate = parseFloat(document.getElementById('rate').value);
             const startDate = document.getElementById('startDate').value;
+            const interestType = document.getElementById('interestType').value;
 
             // Validate inputs
             if (!name) {
@@ -167,6 +168,10 @@ class InterestCalculator {
                 this.showModal('Please select a start date.', 'error');
                 return;
             }
+            if (!interestType) {
+                this.showModal('Please select an interest type.', 'error');
+                return;
+            }
 
             // Create new investment (without end date)
             const investment = {
@@ -175,6 +180,7 @@ class InterestCalculator {
                 principal: principal,
                 rate: rate,
                 startDate: startDate,
+                interestType: interestType,
                 endDate: '',
                 months: 0,
                 simpleInterest: 0,
@@ -227,6 +233,16 @@ class InterestCalculator {
         document.getElementById('editPrincipal').textContent = this.formatCurrency(investment.principal);
         document.getElementById('editRate').textContent = `${investment.rate}% per month`;
         document.getElementById('editStartDate').textContent = investment.start_date;
+        
+        // Set interest type display and select value
+        const interestTypeText = investment.interest_type === 'taken' ? 'Interest Taken (Loan)' : 'Interest Given (Lent)';
+        document.getElementById('editInterestType').textContent = interestTypeText;
+        document.getElementById('editInterestTypeSelect').value = investment.interest_type || 'taken';
+        
+        // Set interest type
+        const interestType = investment.interest_type || 'taken';
+        document.getElementById('editInterestType').textContent = interestType === 'taken' ? 'Interest Taken (Loan)' : 'Interest Given (Lent)';
+        document.getElementById('editInterestTypeSelect').value = interestType;
 
         // Set default end date (start date + 1 month)
         const start = new Date(investment.start_date);
@@ -291,6 +307,9 @@ class InterestCalculator {
             const totalSimple = Math.round((investment.principal + simpleInterest) * 100) / 100;
             const totalCompound = Math.round((investment.principal + compoundInterest) * 100) / 100;
 
+            // Get selected interest type from edit modal
+            const interestType = document.getElementById('editInterestTypeSelect').value;
+            
             // Update in database
             const updateData = {
                 endDate: endDate,
@@ -299,6 +318,7 @@ class InterestCalculator {
                 compoundInterest: compoundInterest,
                 totalSimple: totalSimple,
                 totalCompound: totalCompound,
+                interestType: interestType,
                 calculationDate: new Date().toISOString()
             };
 
@@ -462,20 +482,71 @@ class InterestCalculator {
             cell.style.padding = '40px';
             return;
         }
+        
+        // Helper function to get interest type display text
+        const getInterestTypeText = (type) => {
+            return type === 'taken' ? 'Interest Taken (Loan)' : 'Interest Given (Lent)';
+        };
 
         // Debug: Log the first investment to see data structure
         if (this.history.length > 0) {
             console.log('First investment data:', this.history[0]);
         }
 
-        this.history.forEach(inv => {
-            const row = tbody.insertRow();
+        this.history.forEach(investment => {
+            const hasCalculation = investment.end_date && investment.months > 0;
+            const statusClass = hasCalculation ? 'calculated' : 'pending';
+            const statusText = hasCalculation ? 'Calculated' : 'Pending';
+            const interestTypeText = getInterestTypeText(investment.interest_type || 'taken');
 
-            // Make rows clickable to select investment and show results
+            const row = tbody.insertRow();
+            row.setAttribute('data-id', investment.id);
+            row.classList.add(statusClass);
+            
+            row.insertCell(0).textContent = investment.name;
+            row.insertCell(1).textContent = this.formatCurrency(investment.principal);
+            row.insertCell(2).textContent = `${investment.rate}%`;
+            row.insertCell(3).textContent = investment.start_date;
+            row.insertCell(4).textContent = hasCalculation ? investment.end_date : '-';
+            row.insertCell(5).textContent = hasCalculation ? investment.months : '-';
+            row.insertCell(6).textContent = hasCalculation ? this.formatCurrency(investment.simple_interest) : '-';
+            row.insertCell(7).textContent = hasCalculation ? this.formatCurrency(investment.compound_interest) : '-';
+            row.insertCell(8).textContent = hasCalculation ? this.formatCurrency(investment.total_simple) : this.formatCurrency(investment.principal);
+            
+            // Actions cell
+            const actionsCell = row.insertCell(9);
+            const editBtn = document.createElement('button');
+            editBtn.className = 'edit-btn';
+            editBtn.innerHTML = '<i class="fas fa-calculator"></i>';
+            editBtn.title = 'Calculate Interest';
+            editBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.editInvestment(investment.id);
+            };
+            actionsCell.appendChild(editBtn);
+            
+            // Add delete button
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+            deleteBtn.title = 'Delete Investment';
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.deleteInvestment(investment.id, investment.name);
+            };
+            actionsCell.appendChild(deleteBtn);
+        });
+        
+        // Make rows clickable to select investment and show results
+        document.querySelectorAll('#historyTableBody tr').forEach(row => {
             row.style.cursor = 'pointer';
             row.onclick = (e) => {
-                console.log('Row clicked for investment:', inv.name); // Debug log
-                this.selectInvestment(inv);
+                const id = row.getAttribute('data-id');
+                const investment = this.history.find(inv => inv.id === parseInt(id));
+                console.log('Row clicked for investment:', investment?.name); // Debug log
+                if (investment) {
+                    this.selectInvestment(investment);
+                }
             };
 
             // Double-click to deselect and show all investments
@@ -492,83 +563,6 @@ class InterestCalculator {
                 row.style.backgroundColor = '';
             };
 
-            row.insertCell(0).textContent = inv.name;
-            row.insertCell(1).textContent = this.formatCurrency(inv.principal);
-            row.insertCell(2).textContent = `${inv.rate}%/month`;
-            row.insertCell(3).textContent = inv.start_date;
-            row.insertCell(4).textContent = inv.end_date || '-';
-            // Ensure numeric values and handle null/undefined
-            const months = parseFloat(inv.months) || 0;
-            const simpleInterest = parseFloat(inv.simple_interest) || 0;
-            const compoundInterest = parseFloat(inv.compound_interest) || 0;
-
-            row.insertCell(5).textContent = months > 0 ? months.toFixed(2) : '-';
-            row.insertCell(6).textContent = simpleInterest > 0 ? this.formatCurrency(simpleInterest) : '-';
-            row.insertCell(7).textContent = compoundInterest > 0 ? this.formatCurrency(compoundInterest) : '-';
-
-            // Total Amount column (Principal + Simple Interest)
-            const totalAmount = months > 0 ? (inv.principal + simpleInterest) : inv.principal;
-            row.insertCell(8).textContent = this.formatCurrency(totalAmount);
-
-            // Actions cell
-            const actionsCell = row.insertCell(9);
-
-            // Create actions container
-            const actionsContainer = document.createElement('div');
-            actionsContainer.style.display = 'flex';
-            actionsContainer.style.gap = '8px';
-            actionsContainer.style.flexWrap = 'wrap';
-
-            // Check if end_date exists and is not null/empty
-            if (!inv.end_date || inv.end_date === null || inv.end_date === '') {
-                // Show Edit button for investments without end date
-                const editBtn = document.createElement('button');
-                editBtn.textContent = 'Edit & Calculate';
-                editBtn.className = 'edit-btn';
-                editBtn.onclick = (e) => {
-                    e.stopPropagation(); // Prevent row click when clicking edit
-                    this.editInvestment(inv.id);
-                };
-                actionsContainer.appendChild(editBtn);
-            } else {
-                // Show green checkmark for calculated investments
-                const checkmarkSpan = document.createElement('span');
-                checkmarkSpan.innerHTML = '✓';
-                checkmarkSpan.style.color = '#22c55e';
-                checkmarkSpan.style.fontSize = '18px';
-                checkmarkSpan.style.fontWeight = 'bold';
-                checkmarkSpan.style.marginRight = '8px';
-                actionsContainer.appendChild(checkmarkSpan);
-            }
-
-            // Add delete icon for all investments
-            const deleteIcon = document.createElement('i');
-            deleteIcon.className = 'fas fa-trash delete-icon';
-            deleteIcon.style.color = '#e53e3e';
-            deleteIcon.style.cursor = 'pointer';
-            deleteIcon.style.fontSize = '16px';
-            deleteIcon.style.padding = '8px';
-            deleteIcon.style.borderRadius = '4px';
-            deleteIcon.style.transition = 'all 0.2s ease';
-            deleteIcon.title = 'Delete Investment';
-            deleteIcon.onclick = (e) => {
-                e.stopPropagation(); // Prevent row click when clicking delete
-                this.deleteInvestment(inv.id, inv.name);
-            };
-
-            // Hover effects
-            deleteIcon.onmouseenter = () => {
-                deleteIcon.style.backgroundColor = '#fed7d7';
-                deleteIcon.style.transform = 'scale(1.1)';
-            };
-            deleteIcon.onmouseleave = () => {
-                deleteIcon.style.backgroundColor = 'transparent';
-                deleteIcon.style.transform = 'scale(1)';
-            };
-
-            actionsContainer.appendChild(deleteIcon);
-
-            actionsCell.appendChild(actionsContainer);
         });
     }
 
@@ -616,12 +610,14 @@ class InterestCalculator {
 
         if (investment) {
             nameSpan.textContent = investment.name;
+            
+            const interestTypeText = investment.interest_type === 'taken' ? 'Interest Taken (Loan)' : 'Interest Given (Lent)';
 
             if (investment.end_date) {
                 const months = parseFloat(investment.months) || 0;
-                detailsSpan.textContent = `Principal: ${this.formatCurrency(investment.principal)} | Rate: ${investment.rate}%/month | Period: ${months.toFixed(2)} months`;
+                detailsSpan.textContent = `Principal: ${this.formatCurrency(investment.principal)} | Rate: ${investment.rate}%/month | Type: ${interestTypeText} | Period: ${months.toFixed(2)} months`;
             } else {
-                detailsSpan.textContent = `Principal: ${this.formatCurrency(investment.principal)} | Rate: ${investment.rate}%/month | Start Date: ${investment.start_date}`;
+                detailsSpan.textContent = `Principal: ${this.formatCurrency(investment.principal)} | Rate: ${investment.rate}%/month | Type: ${interestTypeText} | Start Date: ${investment.start_date}`;
             }
 
             infoDiv.style.display = 'block';

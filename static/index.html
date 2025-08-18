@@ -139,6 +139,14 @@
                             <input type="date" id="startDate" required>
                         </div>
 
+                        <div class="form-group">
+                            <label for="interestType">Interest Type:</label>
+                            <select id="interestType" required>
+                                <option value="taken">Interest Taken (I took a loan)</option>
+                                <option value="given">Interest Given (I gave a loan)</option>
+                            </select>
+                        </div>
+
                         <button type="button" id="addInvestmentBtn" class="calculate-btn">
                             <i class="fas fa-plus"></i> Add Investment
                         </button>
@@ -340,11 +348,21 @@
                     <label>Rate: <span id="editRate"></span></label>
                 </div>
                 <div class="form-group">
+                    <label>Interest Type: <span id="editInterestType"></span></label>
+                </div>
+                <div class="form-group">
                     <label>Start Date: <span id="editStartDate"></span></label>
                 </div>
                 <div class="form-group">
                     <label for="editEndDate">Ending Date:</label>
                     <input type="date" id="editEndDate" required>
+                </div>
+                <div class="form-group">
+                    <label for="editInterestTypeSelect">Change Interest Type:</label>
+                    <select id="editInterestTypeSelect">
+                        <option value="taken">Interest Taken (I took a loan)</option>
+                        <option value="given">Interest Given (I gave a loan)</option>
+                    </select>
                 </div>
                 <button type="button" id="calculateBtn" class="calculate-btn">
                     <i class="fas fa-calculator"></i> Calculate Interest

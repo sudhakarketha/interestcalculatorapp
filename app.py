@@ -194,16 +194,18 @@ def create_table():
                             total_compound REAL DEFAULT 0,
                             calculation_date TEXT,
                             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                            user_id INTEGER NOT NULL
+                            user_id INTEGER NOT NULL,
+                            interest_type TEXT DEFAULT 'taken'
                         )
                     ''')
                     print("SQLite investments table created successfully")
                 else:
                     print("SQLite investments table already exists")
-                    # Check if user_id column exists
+                    # Check if user_id and interest_type columns exist
                     cursor.execute("PRAGMA table_info(investments)")
                     columns = cursor.fetchall()
                     user_id_column = next((col for col in columns if col[1] == 'user_id'), None)
+                    interest_type_column = next((col for col in columns if col[1] == 'interest_type'), None)
                     
                     if not user_id_column:
                         # Add user_id column if it doesn't exist
@@ -212,6 +214,14 @@ def create_table():
                         # Set a default value for existing records
                         cursor.execute("UPDATE investments SET user_id = 1 WHERE user_id IS NULL")
                         print("Added user_id column to SQLite investments table")
+                    
+                    if not interest_type_column:
+                        # Add interest_type column if it doesn't exist
+                        print("Adding missing interest_type column to SQLite investments table")
+                        cursor.execute("ALTER TABLE investments ADD COLUMN interest_type TEXT DEFAULT 'taken'")
+                        # Set a default value for existing records
+                        cursor.execute("UPDATE investments SET interest_type = 'taken' WHERE interest_type IS NULL")
+                        print("Added interest_type column to SQLite investments table")
                     
                     # Check if user_id column is NOT NULL
                     cursor.execute("PRAGMA table_info(investments)")
@@ -237,7 +247,8 @@ def create_table():
                                 total_compound REAL DEFAULT 0,
                                 calculation_date TEXT,
                                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                                user_id INTEGER NOT NULL
+                                user_id INTEGER NOT NULL,
+                                interest_type TEXT DEFAULT 'taken'
                             )
                         ''')
                         cursor.execute("INSERT INTO investments SELECT * FROM investments_old WHERE user_id IS NOT NULL")
@@ -285,7 +296,8 @@ def create_table():
                             total_compound DECIMAL(15,2) DEFAULT 0,
                             calculation_date DATETIME,
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            user_id INT NOT NULL
+                            user_id INT NOT NULL,
+                            interest_type VARCHAR(10) DEFAULT 'taken'
                         )
                     ''')
                     print("MySQL investments table created successfully")
@@ -293,10 +305,11 @@ def create_table():
                     print("MySQL investments table already exists")
                     # Check if user_id column exists - more robust approach for Clever Cloud
                     try:
-                        # First check if the column exists in the table structure
+                        # First check if the columns exist in the table structure
                         cursor.execute("DESCRIBE investments")
                         columns = cursor.fetchall()
                         user_id_exists = any(col[0] == 'user_id' for col in columns)
+                        interest_type_exists = any(col[0] == 'interest_type' for col in columns)
                         
                         if not user_id_exists:
                             print("Adding missing user_id column to MySQL investments table")
@@ -306,9 +319,18 @@ def create_table():
                             print("Added user_id column to MySQL investments table")
                         else:
                             print("MySQL investments table has user_id column")
+                            
+                        if not interest_type_exists:
+                            print("Adding missing interest_type column to MySQL investments table")
+                            cursor.execute("ALTER TABLE investments ADD COLUMN interest_type VARCHAR(10) DEFAULT 'taken'")
+                            # Set a default value for existing records
+                            cursor.execute("UPDATE investments SET interest_type = 'taken' WHERE interest_type IS NULL")
+                            print("Added interest_type column to MySQL investments table")
+                        else:
+                            print("MySQL investments table has interest_type column")
                     except Exception as column_error:
-                        print(f"Error checking/adding user_id column: {column_error}")
-                        # If we can't check properly, try to add it anyway
+                        print(f"Error checking/adding columns: {column_error}")
+                        # If we can't check properly, try to add them anyway
                         try:
                             print("Attempting to add user_id column to MySQL investments table")
                             cursor.execute("ALTER TABLE investments ADD COLUMN user_id INT")
@@ -319,7 +341,17 @@ def create_table():
                                 print("user_id column already exists")
                             else:
                                 print(f"Failed to add user_id column: {add_error}")
-                                raise add_error
+                        
+                        try:
+                            print("Attempting to add interest_type column to MySQL investments table")
+                            cursor.execute("ALTER TABLE investments ADD COLUMN interest_type VARCHAR(10) DEFAULT 'taken'")
+                            cursor.execute("UPDATE investments SET interest_type = 'taken' WHERE interest_type IS NULL")
+                            print("Added interest_type column to MySQL investments table")
+                        except Exception as add_error:
+                            if "Duplicate column name" in str(add_error):
+                                print("interest_type column already exists")
+                            else:
+                                print(f"Failed to add interest_type column: {add_error}")
                     
                     # Check if user_id column is NOT NULL - more robust approach for Clever Cloud
                     try:
@@ -812,12 +844,15 @@ def add_investment():
         # Ensure user_id is available
         user_id = session.get('user_id', 1)  # Default to 1 if not in session
         
+        # Get interest_type from data or default to 'taken'
+        interest_type = data.get('interestType', 'taken')
+        
         if is_sqlite:
             cursor.execute('''
                 INSERT INTO investments 
                 (id, name, principal, rate, start_date, end_date, months, 
-                 simple_interest, compound_interest, total_simple, total_compound, calculation_date, user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 simple_interest, compound_interest, total_simple, total_compound, calculation_date, user_id, interest_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 data['id'],
                 data['name'],
@@ -831,17 +866,18 @@ def add_investment():
                 data.get('totalSimple', data['principal']),
                 data.get('totalCompound', data['principal']),
                 parse_calculation_datetime(data.get('calculationDate')),
-                user_id
+                user_id,
+                interest_type
             ))
         else:
             # For MySQL, handle Clever Cloud specially
             try:
-                # First try with user_id column
+                # First try with user_id and interest_type columns
                 insert_query = '''
                     INSERT INTO investments 
                     (id, name, principal, rate, start_date, end_date, months, 
-                     simple_interest, compound_interest, total_simple, total_compound, calculation_date, user_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     simple_interest, compound_interest, total_simple, total_compound, calculation_date, user_id, interest_type)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 '''
                 
                 cursor.execute(insert_query, (
@@ -857,7 +893,8 @@ def add_investment():
                     data.get('totalSimple', data['principal']),
                     data.get('totalCompound', data['principal']),
                     parse_calculation_datetime(data.get('calculationDate')),
-                    user_id
+                    user_id,
+                    interest_type
                 ))
             except Exception as insert_error:
                 # If we get an error about unknown column 'user_id', try to fix the table
@@ -885,7 +922,8 @@ def add_investment():
                             data.get('totalSimple', data['principal']),
                             data.get('totalCompound', data['principal']),
                             parse_calculation_datetime(data.get('calculationDate')),
-                            user_id
+                            user_id,
+                            interest_type
                         ))
                     except Exception as alter_error:
                         print(f"Failed to add user_id column: {alter_error}")
@@ -997,43 +1035,66 @@ def update_investment(investment_id):
         # Ensure user_id is available
         user_id = session.get('user_id', 1)  # Default to 1 if not in session
         
+        # Get interest_type from data or keep existing
+        interest_type = data.get('interestType')
+        
         try:
             if is_sqlite:
-                cursor.execute('''
+                update_query = '''
                     UPDATE investments 
                     SET end_date = ?, months = ?, simple_interest = ?, 
                         compound_interest = ?, total_simple = ?, total_compound = ?, 
                         calculation_date = ?
-                    WHERE id = ? AND user_id = ?
-                ''', (
+                '''
+                
+                params = [
                     data['endDate'],
                     data['months'],
                     data['simpleInterest'],
                     data['compoundInterest'],
                     data['totalSimple'],
                     data['totalCompound'],
-                    parse_calculation_datetime(data.get('calculationDate')),
-                    investment_id,
-                    user_id
-                ))
+                    parse_calculation_datetime(data.get('calculationDate'))
+                ]
+                
+                # Add interest_type to update if provided
+                if interest_type:
+                    update_query += ', interest_type = ?'
+                    params.append(interest_type)
+                
+                update_query += ' WHERE id = ? AND user_id = ?'
+                params.extend([investment_id, user_id])
+                
+                cursor.execute(update_query, tuple(params))
             else:
-                cursor.execute('''
+                update_query = '''
                     UPDATE investments 
                     SET end_date = %s, months = %s, simple_interest = %s, 
                         compound_interest = %s, total_simple = %s, total_compound = %s, 
                         calculation_date = %s
-                    WHERE id = %s AND user_id = %s
-                ''', (
+                '''
+                
+                params = [
                     data['endDate'],
                     data['months'],
                     data['simpleInterest'],
                     data['compoundInterest'],
                     data['totalSimple'],
                     data['totalCompound'],
-                    parse_calculation_datetime(data.get('calculationDate')),
-                    investment_id,
-                    user_id
-                ))
+                    parse_calculation_datetime(data.get('calculationDate'))
+                ]
+                
+                # Add interest_type to update if provided
+                if interest_type:
+                    update_query += ', interest_type = %s'
+                    params.append(interest_type)
+                
+                update_query += ' WHERE id = %s AND user_id = %s'
+                params.extend([investment_id, user_id])
+                
+                cursor.execute(update_query, tuple(params))
+
+                    
         except Exception as update_error:
             # If we get an error about unknown column 'user_id', try to fix the table and retry without user_id
             if "Unknown column 'user_id'" in str(update_error) and not is_sqlite and is_clever_cloud:

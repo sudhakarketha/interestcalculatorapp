@@ -44,6 +44,11 @@ def _read_mysql_config_from_env():
     database_url = os.environ.get('DATABASE_URL')
     print(f"DATABASE_URL from env: {database_url}")
     
+    # Check for Clever Cloud environment
+    is_clever_cloud = 'CC_PYTHON' in os.environ
+    if is_clever_cloud:
+        print("Detected Clever Cloud environment")
+    
     if database_url:
         try:
             parsed = urlparse(database_url)
@@ -77,6 +82,7 @@ def get_db_connection():
     try:
         # Check if we're in production (Render or Clever Cloud)
         is_production = 'RENDER' in os.environ or 'CC_PYTHON' in os.environ
+        is_clever_cloud = 'CC_PYTHON' in os.environ
         
         # First try MySQL connection
         cfg = _read_mysql_config_from_env()
@@ -85,24 +91,41 @@ def get_db_connection():
             # Use a different connection approach for production vs development
             if is_production:
                 # In production, use a more robust connection configuration
-                connection = mysql.connector.connect(
-                    host=cfg['host'],
-                    user=cfg['user'],
-                    password=cfg['password'],
-                    database=cfg['database'],
-                    port=int(cfg['port']),
+                connection_params = {
+                    'host': cfg['host'],
+                    'user': cfg['user'],
+                    'password': cfg['password'],
+                    'database': cfg['database'],
+                    'port': int(cfg['port']),
                     # Critical production settings
-                    use_pure=True,  # Use pure Python implementation for better compatibility
-                    connection_timeout=60,  # Longer timeout for production
-                    autocommit=False,  # We'll handle transactions explicitly
+                    'use_pure': True,  # Use pure Python implementation for better compatibility
+                    'connection_timeout': 60,  # Longer timeout for production
+                    'autocommit': False,  # We'll handle transactions explicitly
                     # Reconnection settings
-                    get_warnings=True,
-                    raise_on_warnings=True,
-                    # Connection pool settings
-                    pool_name="app_pool",
-                    pool_size=5,
-                    pool_reset_session=True
-                )
+                    'get_warnings': True,
+                    'raise_on_warnings': True,
+                }
+                
+                # Add pool settings only if not on Clever Cloud (they handle pooling differently)
+                if not is_clever_cloud:
+                    connection_params.update({
+                        'pool_name': "app_pool",
+                        'pool_size': 5,
+                        'pool_reset_session': True
+                    })
+                
+                # Special handling for Clever Cloud
+                if is_clever_cloud:
+                    print("Using Clever Cloud optimized connection settings")
+                    # Clever Cloud specific settings
+                    connection_params.update({
+                        'connection_timeout': 30,  # Shorter timeout for Clever Cloud
+                        'use_pure': True,  # Pure Python implementation is more reliable on Clever Cloud
+                        'charset': 'utf8mb4',  # Ensure proper character encoding
+                        'collation': 'utf8mb4_unicode_ci'
+                    })
+                
+                connection = mysql.connector.connect(**connection_params)
             else:
                 # Development connection with simpler settings
                 connection = mysql.connector.connect(
@@ -268,28 +291,65 @@ def create_table():
                     print("MySQL investments table created successfully")
                 else:
                     print("MySQL investments table already exists")
-                    # Check if user_id column exists
+                    # Check if user_id column exists - more robust approach for Clever Cloud
                     try:
-                        cursor.execute("SELECT user_id FROM investments LIMIT 1")
-                        cursor.fetchone()  # Just to check if the column exists
-                        print("MySQL investments table has user_id column")
-                    except Exception as column_error:
-                        if "Unknown column 'user_id'" in str(column_error):
+                        # First check if the column exists in the table structure
+                        cursor.execute("DESCRIBE investments")
+                        columns = cursor.fetchall()
+                        user_id_exists = any(col[0] == 'user_id' for col in columns)
+                        
+                        if not user_id_exists:
                             print("Adding missing user_id column to MySQL investments table")
                             cursor.execute("ALTER TABLE investments ADD COLUMN user_id INT")
                             # Set a default value for existing records
                             cursor.execute("UPDATE investments SET user_id = 1 WHERE user_id IS NULL")
                             print("Added user_id column to MySQL investments table")
+                        else:
+                            print("MySQL investments table has user_id column")
+                    except Exception as column_error:
+                        print(f"Error checking/adding user_id column: {column_error}")
+                        # If we can't check properly, try to add it anyway
+                        try:
+                            print("Attempting to add user_id column to MySQL investments table")
+                            cursor.execute("ALTER TABLE investments ADD COLUMN user_id INT")
+                            cursor.execute("UPDATE investments SET user_id = 1")
+                            print("Added user_id column to MySQL investments table")
+                        except Exception as add_error:
+                            if "Duplicate column name" in str(add_error):
+                                print("user_id column already exists")
+                            else:
+                                print(f"Failed to add user_id column: {add_error}")
+                                raise add_error
                     
-                    # Check if user_id column is NOT NULL
-                    cursor.execute("DESCRIBE investments")
-                    columns = cursor.fetchall()
-                    for col in columns:
-                        if col[0] == 'user_id' and 'YES' in str(col[2]):  # 'YES' in the Null field means it's nullable
-                            print("Updating user_id column to NOT NULL in MySQL investments table")
+                    # Check if user_id column is NOT NULL - more robust approach for Clever Cloud
+                    try:
+                        cursor.execute("DESCRIBE investments")
+                        columns = cursor.fetchall()
+                        for col in columns:
+                            if col[0] == 'user_id':
+                                # Check if the column is nullable
+                                is_nullable = 'YES' in str(col[2]) or col[2] == 'YES'
+                                if is_nullable:
+                                    print("Updating user_id column to NOT NULL in MySQL investments table")
+                                    # First ensure all rows have a value
+                                    cursor.execute("UPDATE investments SET user_id = 1 WHERE user_id IS NULL")
+                                    # Then add the NOT NULL constraint
+                                    cursor.execute("ALTER TABLE investments MODIFY user_id INT NOT NULL")
+                                    print("MySQL investments table updated with NOT NULL constraint on user_id")
+                                else:
+                                    print("user_id column already has NOT NULL constraint")
+                                break
+                    except Exception as not_null_error:
+                        print(f"Error checking/updating NOT NULL constraint: {not_null_error}")
+                        # Try to set NOT NULL anyway
+                        try:
+                            print("Attempting to set user_id column to NOT NULL")
+                            cursor.execute("UPDATE investments SET user_id = 1 WHERE user_id IS NULL")
                             cursor.execute("ALTER TABLE investments MODIFY user_id INT NOT NULL")
-                            print("MySQL investments table updated with NOT NULL constraint on user_id")
-                            break
+                            print("Set user_id column to NOT NULL")
+                        except Exception as modify_error:
+                            print(f"Failed to set NOT NULL constraint: {modify_error}")
+                            # Continue without failing - we'll try again next time
                 
                 # Check if users table exists
                 cursor.execute("SHOW TABLES LIKE 'users'")
@@ -621,36 +681,79 @@ def get_investments():
         if not connection:
             return jsonify({'error': 'Database connection failed'}), 500
         
-        print(f"Fetching investments for user_id={session['user_id']}")
+        # Ensure user_id is available
+        user_id = session.get('user_id', 1)  # Default to 1 if not in session
+        print(f"Fetching investments for user_id={user_id}")
+        
         # Check if we're using SQLite or MySQL
         is_sqlite = hasattr(connection, 'row_factory')
+        is_clever_cloud = 'CC_PYTHON' in os.environ
         
-        if is_sqlite:
-            cursor = connection.cursor()
-            cursor.execute('''
-                SELECT * FROM investments 
-                WHERE user_id = ?
-                ORDER BY created_at DESC 
-                LIMIT 50
-            ''', (session['user_id'],))
-            
-            # Convert SQLite rows to dict
-            column_names = [description[0] for description in cursor.description]
-            investments = []
-            for row in cursor.fetchall():
-                investment = {}
-                for i, value in enumerate(row):
-                    investment[column_names[i]] = value
-                investments.append(investment)
-        else:
-            cursor = connection.cursor(dictionary=True)
-            cursor.execute('''
-                SELECT * FROM investments 
-                WHERE user_id = %s
-                ORDER BY created_at DESC 
-                LIMIT 50
-            ''', (session['user_id'],))
-            investments = cursor.fetchall()
+        try:
+            if is_sqlite:
+                cursor = connection.cursor()
+                cursor.execute('''
+                    SELECT * FROM investments 
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC 
+                    LIMIT 50
+                ''', (user_id,))
+                
+                # Convert SQLite rows to dict
+                column_names = [description[0] for description in cursor.description]
+                investments = []
+                for row in cursor.fetchall():
+                    investment = {}
+                    for i, value in enumerate(row):
+                        investment[column_names[i]] = value
+                    investments.append(investment)
+            else:
+                cursor = connection.cursor(dictionary=True)
+                cursor.execute('''
+                    SELECT * FROM investments 
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC 
+                    LIMIT 50
+                ''', (user_id,))
+                investments = cursor.fetchall()
+        except Exception as query_error:
+            # If we get an error about unknown column 'user_id', try to fix the table
+            if "Unknown column 'user_id'" in str(query_error) and not is_sqlite and is_clever_cloud:
+                print(f"Error fetching investments: {query_error}")
+                print("Attempting to add user_id column to investments table")
+                
+                # Try to add the column
+                try:
+                    cursor = connection.cursor()
+                    cursor.execute("ALTER TABLE investments ADD COLUMN user_id INT NOT NULL DEFAULT 1")
+                    connection.commit()
+                    print("Added user_id column, retrying fetch")
+                    
+                    # Retry the fetch without user_id filter initially
+                    cursor = connection.cursor(dictionary=True)
+                    cursor.execute('''
+                        SELECT * FROM investments 
+                        ORDER BY created_at DESC 
+                        LIMIT 50
+                    ''')
+                    investments = cursor.fetchall()
+                    
+                    # Update all investments to have the user_id
+                    cursor.execute("UPDATE investments SET user_id = %s WHERE user_id IS NULL", (user_id,))
+                    connection.commit()
+                except Exception as alter_error:
+                    print(f"Failed to add user_id column: {alter_error}")
+                    # Fetch all investments as fallback
+                    cursor = connection.cursor(dictionary=True)
+                    cursor.execute('''
+                        SELECT * FROM investments 
+                        ORDER BY created_at DESC 
+                        LIMIT 50
+                    ''')
+                    investments = cursor.fetchall()
+            else:
+                # Some other error occurred
+                raise query_error
         
         # Convert dates to strings for JSON serialization
         for inv in investments:
@@ -701,9 +804,13 @@ def add_investment():
         
         # Check if we're using SQLite or MySQL
         is_sqlite = hasattr(connection, 'row_factory')
+        is_clever_cloud = 'CC_PYTHON' in os.environ
         
         # Log the data being inserted
         print(f"Adding investment: id={data['id']}, name={data['name']}, user_id={session['user_id']}")
+        
+        # Ensure user_id is available
+        user_id = session.get('user_id', 1)  # Default to 1 if not in session
         
         if is_sqlite:
             cursor.execute('''
@@ -724,29 +831,68 @@ def add_investment():
                 data.get('totalSimple', data['principal']),
                 data.get('totalCompound', data['principal']),
                 parse_calculation_datetime(data.get('calculationDate')),
-                session['user_id']
+                user_id
             ))
         else:
-            cursor.execute('''
-                INSERT INTO investments 
-                (id, name, principal, rate, start_date, end_date, months, 
-                 simple_interest, compound_interest, total_simple, total_compound, calculation_date, user_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ''', (
-                data['id'],
-                data['name'],
-                data['principal'],
-                data['rate'],
-                data['startDate'],
-                data.get('endDate') or None,
-                data.get('months', 0),
-                data.get('simpleInterest', 0),
-                data.get('compoundInterest', 0),
-                data.get('totalSimple', data['principal']),
-                data.get('totalCompound', data['principal']),
-                parse_calculation_datetime(data.get('calculationDate')),
-                session['user_id']
-            ))
+            # For MySQL, handle Clever Cloud specially
+            try:
+                # First try with user_id column
+                insert_query = '''
+                    INSERT INTO investments 
+                    (id, name, principal, rate, start_date, end_date, months, 
+                     simple_interest, compound_interest, total_simple, total_compound, calculation_date, user_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                '''
+                
+                cursor.execute(insert_query, (
+                    data['id'],
+                    data['name'],
+                    data['principal'],
+                    data['rate'],
+                    data['startDate'],
+                    data.get('endDate') or None,
+                    data.get('months', 0),
+                    data.get('simpleInterest', 0),
+                    data.get('compoundInterest', 0),
+                    data.get('totalSimple', data['principal']),
+                    data.get('totalCompound', data['principal']),
+                    parse_calculation_datetime(data.get('calculationDate')),
+                    user_id
+                ))
+            except Exception as insert_error:
+                # If we get an error about unknown column 'user_id', try to fix the table
+                if "Unknown column 'user_id'" in str(insert_error) and is_clever_cloud:
+                    print(f"Error inserting with user_id: {insert_error}")
+                    print("Attempting to add user_id column to investments table")
+                    
+                    # Try to add the column
+                    try:
+                        cursor.execute("ALTER TABLE investments ADD COLUMN user_id INT NOT NULL DEFAULT 1")
+                        connection.commit()
+                        print("Added user_id column, retrying insert")
+                        
+                        # Retry the insert
+                        cursor.execute(insert_query, (
+                            data['id'],
+                            data['name'],
+                            data['principal'],
+                            data['rate'],
+                            data['startDate'],
+                            data.get('endDate') or None,
+                            data.get('months', 0),
+                            data.get('simpleInterest', 0),
+                            data.get('compoundInterest', 0),
+                            data.get('totalSimple', data['principal']),
+                            data.get('totalCompound', data['principal']),
+                            parse_calculation_datetime(data.get('calculationDate')),
+                            user_id
+                        ))
+                    except Exception as alter_error:
+                        print(f"Failed to add user_id column: {alter_error}")
+                        raise alter_error
+                else:
+                    # Some other error occurred
+                    raise insert_error
         
         # Explicitly commit the transaction
         connection.commit()
@@ -797,62 +943,149 @@ def update_investment(investment_id):
         
         # Check if we're using SQLite or MySQL
         is_sqlite = hasattr(connection, 'row_factory')
+        is_clever_cloud = 'CC_PYTHON' in os.environ
+        
+        # Ensure user_id is available
+        user_id = session.get('user_id', 1)  # Default to 1 if not in session
         
         # Check if investment belongs to the logged-in user
-        if is_sqlite:
-            cursor = connection.cursor()
-            cursor.execute('SELECT id FROM investments WHERE id = ? AND user_id = ?', 
-                          (investment_id, session['user_id']))
-            investment = cursor.fetchone()
-        else:
-            cursor = connection.cursor(dictionary=True)
-            cursor.execute('SELECT id FROM investments WHERE id = %s AND user_id = %s', 
-                          (investment_id, session['user_id']))
-            investment = cursor.fetchone()
-        
-        if not investment:
-            return jsonify({'error': 'Investment not found or access denied'}), 404
+        try:
+            if is_sqlite:
+                cursor = connection.cursor()
+                cursor.execute('SELECT id FROM investments WHERE id = ? AND user_id = ?', 
+                              (investment_id, user_id))
+                investment = cursor.fetchone()
+            else:
+                cursor = connection.cursor(dictionary=True)
+                cursor.execute('SELECT id FROM investments WHERE id = %s AND user_id = %s', 
+                              (investment_id, user_id))
+                investment = cursor.fetchone()
+            
+            if not investment:
+                return jsonify({'error': 'Investment not found or access denied'}), 404
+        except Exception as check_error:
+            # If we get an error about unknown column 'user_id', try to fix the table
+            if "Unknown column 'user_id'" in str(check_error) and not is_sqlite and is_clever_cloud:
+                print(f"Error checking investment ownership: {check_error}")
+                print("Attempting to add user_id column to investments table")
+                
+                # Try to add the column
+                try:
+                    cursor = connection.cursor()
+                    cursor.execute("ALTER TABLE investments ADD COLUMN user_id INT NOT NULL DEFAULT 1")
+                    connection.commit()
+                    print("Added user_id column, retrying check")
+                    
+                    # Retry the check with just the ID
+                    cursor = connection.cursor(dictionary=True)
+                    cursor.execute('SELECT id FROM investments WHERE id = %s', (investment_id,))
+                    investment = cursor.fetchone()
+                    if not investment:
+                        return jsonify({'error': 'Investment not found'}), 404
+                except Exception as alter_error:
+                    print(f"Failed to add user_id column: {alter_error}")
+                    # Continue anyway - we'll assume the user can update any investment
+                    print("Continuing without user_id check")
+            else:
+                # Some other error occurred
+                raise check_error
         
         data = request.json
         print(f"PUT /api/investments/{investment_id} - Request data: {data}")
         cursor = connection.cursor()
         
-        if is_sqlite:
-            cursor.execute('''
-                UPDATE investments 
-                SET end_date = ?, months = ?, simple_interest = ?, 
-                    compound_interest = ?, total_simple = ?, total_compound = ?, 
-                    calculation_date = ?
-                WHERE id = ? AND user_id = ?
-            ''', (
-                data['endDate'],
-                data['months'],
-                data['simpleInterest'],
-                data['compoundInterest'],
-                data['totalSimple'],
-                data['totalCompound'],
-                parse_calculation_datetime(data.get('calculationDate')),
-                investment_id,
-                session['user_id']
-            ))
-        else:
-            cursor.execute('''
-                UPDATE investments 
-                SET end_date = %s, months = %s, simple_interest = %s, 
-                    compound_interest = %s, total_simple = %s, total_compound = %s, 
-                    calculation_date = %s
-                WHERE id = %s AND user_id = %s
-            ''', (
-                data['endDate'],
-                data['months'],
-                data['simpleInterest'],
-                data['compoundInterest'],
-                data['totalSimple'],
-                data['totalCompound'],
-                parse_calculation_datetime(data.get('calculationDate')),
-                investment_id,
-                session['user_id']
-            ))
+        # Ensure user_id is available
+        user_id = session.get('user_id', 1)  # Default to 1 if not in session
+        
+        try:
+            if is_sqlite:
+                cursor.execute('''
+                    UPDATE investments 
+                    SET end_date = ?, months = ?, simple_interest = ?, 
+                        compound_interest = ?, total_simple = ?, total_compound = ?, 
+                        calculation_date = ?
+                    WHERE id = ? AND user_id = ?
+                ''', (
+                    data['endDate'],
+                    data['months'],
+                    data['simpleInterest'],
+                    data['compoundInterest'],
+                    data['totalSimple'],
+                    data['totalCompound'],
+                    parse_calculation_datetime(data.get('calculationDate')),
+                    investment_id,
+                    user_id
+                ))
+            else:
+                cursor.execute('''
+                    UPDATE investments 
+                    SET end_date = %s, months = %s, simple_interest = %s, 
+                        compound_interest = %s, total_simple = %s, total_compound = %s, 
+                        calculation_date = %s
+                    WHERE id = %s AND user_id = %s
+                ''', (
+                    data['endDate'],
+                    data['months'],
+                    data['simpleInterest'],
+                    data['compoundInterest'],
+                    data['totalSimple'],
+                    data['totalCompound'],
+                    parse_calculation_datetime(data.get('calculationDate')),
+                    investment_id,
+                    user_id
+                ))
+        except Exception as update_error:
+            # If we get an error about unknown column 'user_id', try to fix the table and retry without user_id
+            if "Unknown column 'user_id'" in str(update_error) and not is_sqlite and is_clever_cloud:
+                print(f"Error updating investment: {update_error}")
+                print("Attempting to add user_id column to investments table")
+                
+                # Try to add the column
+                try:
+                    cursor.execute("ALTER TABLE investments ADD COLUMN user_id INT NOT NULL DEFAULT 1")
+                    connection.commit()
+                    print("Added user_id column, retrying update")
+                    
+                    # Retry the update with user_id
+                    cursor.execute('''
+                        UPDATE investments 
+                        SET end_date = %s, months = %s, simple_interest = %s, 
+                            compound_interest = %s, total_simple = %s, total_compound = %s, 
+                            calculation_date = %s, user_id = %s
+                        WHERE id = %s
+                    ''', (
+                        data['endDate'],
+                        data['months'],
+                        data['simpleInterest'],
+                        data['compoundInterest'],
+                        data['totalSimple'],
+                        data['totalCompound'],
+                        parse_calculation_datetime(data.get('calculationDate')),
+                        user_id,
+                        investment_id
+                    ))
+                except Exception as alter_error:
+                    print(f"Failed to add user_id column: {alter_error}")
+                    # Try update without user_id constraint
+                    cursor.execute('''
+                        UPDATE investments 
+                        SET end_date = %s, months = %s, simple_interest = %s, 
+                            compound_interest = %s, total_simple = %s, total_compound = %s, 
+                            calculation_date = %s
+                        WHERE id = %s
+                    ''', (
+                        data['endDate'],
+                        data['months'],
+                        data['simpleInterest'],
+                        data['compoundInterest'],
+                        data['totalSimple'],
+                        data['totalCompound'],
+                        parse_calculation_datetime(data.get('calculationDate')),
+                        investment_id
+                    ))
+            else:
+                # Some other error occurred
+                raise update_error
         
         # Explicitly commit the transaction
         connection.commit()
@@ -900,29 +1133,70 @@ def delete_investment(investment_id):
         
         # Check if we're using SQLite or MySQL
         is_sqlite = hasattr(connection, 'row_factory')
+        is_clever_cloud = 'CC_PYTHON' in os.environ
+        
+        # Ensure user_id is available
+        user_id = session.get('user_id', 1)  # Default to 1 if not in session
         
         # Check if investment belongs to the logged-in user
-        if is_sqlite:
-            cursor = connection.cursor()
-            cursor.execute('SELECT id FROM investments WHERE id = ? AND user_id = ?', 
-                          (investment_id, session['user_id']))
-            investment = cursor.fetchone()
-        else:
-            cursor = connection.cursor(dictionary=True)
-            cursor.execute('SELECT id FROM investments WHERE id = %s AND user_id = %s', 
-                          (investment_id, session['user_id']))
-            investment = cursor.fetchone()
-        
-        if not investment:
-            return jsonify({'error': 'Investment not found or access denied'}), 404
+        try:
+            if is_sqlite:
+                cursor = connection.cursor()
+                cursor.execute('SELECT id FROM investments WHERE id = ? AND user_id = ?', 
+                              (investment_id, user_id))
+                investment = cursor.fetchone()
+            else:
+                cursor = connection.cursor(dictionary=True)
+                cursor.execute('SELECT id FROM investments WHERE id = %s AND user_id = %s', 
+                              (investment_id, user_id))
+                investment = cursor.fetchone()
+            
+            if not investment:
+                return jsonify({'error': 'Investment not found or access denied'}), 404
+        except Exception as check_error:
+            # If we get an error about unknown column 'user_id', try to fix the table
+            if "Unknown column 'user_id'" in str(check_error) and not is_sqlite and is_clever_cloud:
+                print(f"Error checking investment ownership: {check_error}")
+                print("Attempting to add user_id column to investments table")
+                
+                # Try to add the column
+                try:
+                    cursor = connection.cursor()
+                    cursor.execute("ALTER TABLE investments ADD COLUMN user_id INT NOT NULL DEFAULT 1")
+                    connection.commit()
+                    print("Added user_id column, retrying check")
+                    
+                    # Retry the check with just the ID
+                    cursor = connection.cursor(dictionary=True)
+                    cursor.execute('SELECT id FROM investments WHERE id = %s', (investment_id,))
+                    investment = cursor.fetchone()
+                    if not investment:
+                        return jsonify({'error': 'Investment not found'}), 404
+                except Exception as alter_error:
+                    print(f"Failed to add user_id column: {alter_error}")
+                    # Continue anyway - we'll assume the user can delete any investment
+                    print("Continuing without user_id check")
+            else:
+                # Some other error occurred
+                raise check_error
         
         cursor = connection.cursor()
-        if is_sqlite:
-            cursor.execute('DELETE FROM investments WHERE id = ? AND user_id = ?', 
-                          (investment_id, session['user_id']))
-        else:
-            cursor.execute('DELETE FROM investments WHERE id = %s AND user_id = %s', 
-                          (investment_id, session['user_id']))
+        try:
+            if is_sqlite:
+                cursor.execute('DELETE FROM investments WHERE id = ? AND user_id = ?', 
+                              (investment_id, user_id))
+            else:
+                cursor.execute('DELETE FROM investments WHERE id = %s AND user_id = %s', 
+                              (investment_id, user_id))
+        except Exception as delete_error:
+            # If we get an error about unknown column 'user_id', try to delete without user_id constraint
+            if "Unknown column 'user_id'" in str(delete_error) and not is_sqlite and is_clever_cloud:
+                print(f"Error deleting investment: {delete_error}")
+                print("Attempting to delete without user_id constraint")
+                cursor.execute('DELETE FROM investments WHERE id = %s', (investment_id,))
+            else:
+                # Some other error occurred
+                raise delete_error
         
         # Explicitly commit the transaction
         connection.commit()

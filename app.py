@@ -75,113 +75,256 @@ def _read_mysql_config_from_env():
 
 def get_db_connection():
     try:
+        # Check if we're in production (Render or Clever Cloud)
+        is_production = 'RENDER' in os.environ or 'CC_PYTHON' in os.environ
+        
         # First try MySQL connection
         cfg = _read_mysql_config_from_env()
         print(f"Attempting database connection with config: host={cfg['host']}, user={cfg['user']}, database={cfg['database']}, port={cfg['port']}")
         try:
-            connection = mysql.connector.connect(
-                host=cfg['host'],
-                user=cfg['user'],
-                password=cfg['password'],
-                database=cfg['database'],
-                port=int(cfg['port'])
-            )
+            # Use a different connection approach for production vs development
+            if is_production:
+                # In production, use a more robust connection configuration
+                connection = mysql.connector.connect(
+                    host=cfg['host'],
+                    user=cfg['user'],
+                    password=cfg['password'],
+                    database=cfg['database'],
+                    port=int(cfg['port']),
+                    # Critical production settings
+                    use_pure=True,  # Use pure Python implementation for better compatibility
+                    connection_timeout=60,  # Longer timeout for production
+                    autocommit=False,  # We'll handle transactions explicitly
+                    # Reconnection settings
+                    get_warnings=True,
+                    raise_on_warnings=True,
+                    # Connection pool settings
+                    pool_name="app_pool",
+                    pool_size=5,
+                    pool_reset_session=True
+                )
+            else:
+                # Development connection with simpler settings
+                connection = mysql.connector.connect(
+                    host=cfg['host'],
+                    user=cfg['user'],
+                    password=cfg['password'],
+                    database=cfg['database'],
+                    port=int(cfg['port']),
+                    autocommit=False
+                )
             print("MySQL database connection successful")
             return connection
         except Exception as mysql_error:
             print(f"MySQL database connection error: {mysql_error}")
-            # Fallback to SQLite for local development
-            import sqlite3
-            print("Falling back to SQLite database")
-            sqlite_connection = sqlite3.connect('test_interest_calculator.db')
-            sqlite_connection.row_factory = sqlite3.Row
-            print("SQLite database connection successful")
-            return sqlite_connection
+            
+            # Only fallback to SQLite in development environment
+            if not is_production:
+                import sqlite3
+                print("Falling back to SQLite database for local development")
+                sqlite_connection = sqlite3.connect('test_interest_calculator.db')
+                sqlite_connection.row_factory = sqlite3.Row
+                print("SQLite database connection successful")
+                return sqlite_connection
+            else:
+                # In production, don't fallback to SQLite
+                print("ERROR: MySQL connection failed in production environment")
+                raise mysql_error
     except Exception as e:
         print(f"All database connection attempts failed: {e}")
         return None
 
 # Create database tables
 def create_table():
-    connection = get_db_connection()
-    if connection:
+    connection = None
+    cursor = None
+    
+    try:
+        connection = get_db_connection()
+        if not connection:
+            print("Failed to get database connection for table creation")
+            return
+            
+        # Check if we're using SQLite or MySQL
+        is_sqlite = hasattr(connection, 'row_factory')
+        print(f"Creating tables using {'SQLite' if is_sqlite else 'MySQL'} syntax")
+        
+        cursor = connection.cursor()
+        
         try:
-            # Check if we're using SQLite or MySQL
-            is_sqlite = hasattr(connection, 'row_factory')
-            
-            cursor = connection.cursor()
-            
             # Create investments table with syntax compatible with both SQLite and MySQL
             if is_sqlite:
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS investments (
-                        id INTEGER PRIMARY KEY,
-                        name TEXT NOT NULL,
-                        principal REAL NOT NULL,
-                        rate REAL NOT NULL,
-                        start_date TEXT NOT NULL,
-                        end_date TEXT,
-                        months REAL DEFAULT 0,
-                        simple_interest REAL DEFAULT 0,
-                        compound_interest REAL DEFAULT 0,
-                        total_simple REAL DEFAULT 0,
-                        total_compound REAL DEFAULT 0,
-                        calculation_date TEXT,
-                        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                        user_id INTEGER
-                    )
-                ''')
+                # First check if the table exists
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='investments'")
+                table_exists = cursor.fetchone()
                 
-                # Create users table for SQLite
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS users (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        username TEXT NOT NULL UNIQUE,
-                        email TEXT NOT NULL UNIQUE,
-                        password_hash TEXT NOT NULL,
-                        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-                    )
-                ''')
+                if not table_exists:
+                    print("Creating investments table in SQLite")
+                    cursor.execute('''
+                        CREATE TABLE IF NOT EXISTS investments (
+                            id INTEGER PRIMARY KEY,
+                            name TEXT NOT NULL,
+                            principal REAL NOT NULL,
+                            rate REAL NOT NULL,
+                            start_date TEXT NOT NULL,
+                            end_date TEXT,
+                            months REAL DEFAULT 0,
+                            simple_interest REAL DEFAULT 0,
+                            compound_interest REAL DEFAULT 0,
+                            total_simple REAL DEFAULT 0,
+                            total_compound REAL DEFAULT 0,
+                            calculation_date TEXT,
+                            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                            user_id INTEGER NOT NULL
+                        )
+                    ''')
+                    print("SQLite investments table created successfully")
+                else:
+                    print("SQLite investments table already exists")
+                    # Check if user_id column exists and is NOT NULL
+                    cursor.execute("PRAGMA table_info(investments)")
+                    columns = cursor.fetchall()
+                    user_id_column = next((col for col in columns if col[1] == 'user_id'), None)
+                    
+                    if user_id_column and user_id_column[3] == 0:  # 3 is the index for NOT NULL constraint (0=nullable, 1=not null)
+                        print("Updating user_id column to NOT NULL in SQLite investments table")
+                        # SQLite doesn't support ALTER COLUMN directly, so we need to recreate the table
+                        # This is a simplified approach - in production you'd want to preserve data
+                        cursor.execute("ALTER TABLE investments RENAME TO investments_old")
+                        cursor.execute('''
+                            CREATE TABLE investments (
+                                id INTEGER PRIMARY KEY,
+                                name TEXT NOT NULL,
+                                principal REAL NOT NULL,
+                                rate REAL NOT NULL,
+                                start_date TEXT NOT NULL,
+                                end_date TEXT,
+                                months REAL DEFAULT 0,
+                                simple_interest REAL DEFAULT 0,
+                                compound_interest REAL DEFAULT 0,
+                                total_simple REAL DEFAULT 0,
+                                total_compound REAL DEFAULT 0,
+                                calculation_date TEXT,
+                                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                                user_id INTEGER NOT NULL
+                            )
+                        ''')
+                        cursor.execute("INSERT INTO investments SELECT * FROM investments_old WHERE user_id IS NOT NULL")
+                        cursor.execute("DROP TABLE investments_old")
+                        print("SQLite investments table updated with NOT NULL constraint on user_id")
+                
+                # Check if users table exists
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+                table_exists = cursor.fetchone()
+                
+                if not table_exists:
+                    print("Creating users table in SQLite")
+                    cursor.execute('''
+                        CREATE TABLE IF NOT EXISTS users (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            username TEXT NOT NULL UNIQUE,
+                            email TEXT NOT NULL UNIQUE,
+                            password_hash TEXT NOT NULL,
+                            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ''')
+                    print("SQLite users table created successfully")
+                else:
+                    print("SQLite users table already exists")
             else:
                 # MySQL syntax
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS investments (
-                        id BIGINT PRIMARY KEY,
-                        name VARCHAR(255) NOT NULL,
-                        principal DECIMAL(15,2) NOT NULL,
-                        rate DECIMAL(5,2) NOT NULL,
-                        start_date DATE NOT NULL,
-                        end_date DATE,
-                        months DECIMAL(8,2) DEFAULT 0,
-                        simple_interest DECIMAL(15,2) DEFAULT 0,
-                        compound_interest DECIMAL(15,2) DEFAULT 0,
-                        total_simple DECIMAL(15,2) DEFAULT 0,
-                        total_compound DECIMAL(15,2) DEFAULT 0,
-                        calculation_date DATETIME,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        user_id INT
-                    )
-                ''')
+                # Check if investments table exists
+                cursor.execute("SHOW TABLES LIKE 'investments'")
+                table_exists = cursor.fetchone()
                 
-                # Create users table for MySQL
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS users (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        username VARCHAR(100) NOT NULL UNIQUE,
-                        email VARCHAR(100) NOT NULL UNIQUE,
-                        password_hash VARCHAR(255) NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                ''')
+                if not table_exists:
+                    print("Creating investments table in MySQL")
+                    cursor.execute('''
+                        CREATE TABLE IF NOT EXISTS investments (
+                            id BIGINT PRIMARY KEY,
+                            name VARCHAR(255) NOT NULL,
+                            principal DECIMAL(15,2) NOT NULL,
+                            rate DECIMAL(5,2) NOT NULL,
+                            start_date DATE NOT NULL,
+                            end_date DATE,
+                            months DECIMAL(8,2) DEFAULT 0,
+                            simple_interest DECIMAL(15,2) DEFAULT 0,
+                            compound_interest DECIMAL(15,2) DEFAULT 0,
+                            total_simple DECIMAL(15,2) DEFAULT 0,
+                            total_compound DECIMAL(15,2) DEFAULT 0,
+                            calculation_date DATETIME,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            user_id INT NOT NULL
+                        )
+                    ''')
+                    print("MySQL investments table created successfully")
+                else:
+                    print("MySQL investments table already exists")
+                    # Check if user_id column is NOT NULL
+                    cursor.execute("DESCRIBE investments")
+                    columns = cursor.fetchall()
+                    for col in columns:
+                        if col[0] == 'user_id' and 'YES' in col[2]:  # 'YES' in the Null field means it's nullable
+                            print("Updating user_id column to NOT NULL in MySQL investments table")
+                            cursor.execute("ALTER TABLE investments MODIFY user_id INT NOT NULL")
+                            print("MySQL investments table updated with NOT NULL constraint on user_id")
+                            break
+                
+                # Check if users table exists
+                cursor.execute("SHOW TABLES LIKE 'users'")
+                table_exists = cursor.fetchone()
+                
+                if not table_exists:
+                    print("Creating users table in MySQL")
+                    cursor.execute('''
+                        CREATE TABLE IF NOT EXISTS users (
+                            id INT AUTO_INCREMENT PRIMARY KEY,
+                            username VARCHAR(100) NOT NULL UNIQUE,
+                            email VARCHAR(100) NOT NULL UNIQUE,
+                            password_hash VARCHAR(255) NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ''')
+                    print("MySQL users table created successfully")
+                else:
+                    print("MySQL users table already exists")
             
+            # Explicitly commit changes
             connection.commit()
-            cursor.close()
-            connection.close()
-            print("Database table created successfully")
-        except Exception as e:
-            print(f"Error creating table: {e}")
-    else:
-        print("Skipping table creation because database connection was not established")
+            print("Database tables created or verified successfully")
+            
+        except Exception as table_error:
+            print(f"Error creating or updating tables: {table_error}")
+            if connection:
+                try:
+                    connection.rollback()
+                    print("Transaction rolled back due to error")
+                except Exception as rollback_error:
+                    print(f"Error during rollback: {rollback_error}")
+            raise table_error
+            
+    except Exception as e:
+        print(f"Critical error in create_table: {e}")
+        # Check if we're in production
+        if 'RENDER' in os.environ or 'CC_PYTHON' in os.environ:
+            print("ERROR: Failed to create tables in production environment")
+            # In production, this is a critical error
+            # We don't want to continue with a broken database setup
+    
+    finally:
+        # Always close cursor and connection in finally block
+        if cursor:
+            try:
+                cursor.close()
+            except Exception as e:
+                print(f"Error closing cursor: {e}")
+        
+        if connection:
+            try:
+                connection.close()
+                print("Database connection closed after table creation")
+            except Exception as e:
+                print(f"Error closing connection: {e}")
 
 # Ensure the table exists when the module is imported (works under Gunicorn on Render)
 create_table()
@@ -233,11 +376,14 @@ def index():
 
 @app.route('/api/register', methods=['POST'])
 def register():
-    connection = get_db_connection()
-    if not connection:
-        return jsonify({'error': 'Database connection failed'}), 500
+    connection = None
+    cursor = None
     
     try:
+        connection = get_db_connection()
+        if not connection:
+            return jsonify({'error': 'Database connection failed'}), 500
+        
         data = request.json
         username = data.get('username')
         email = data.get('email')
@@ -287,9 +433,6 @@ def register():
         session['username'] = username
         session.permanent = True
         
-        cursor.close()
-        connection.close()
-        
         return jsonify({
             'message': 'Registration successful',
             'user': {'id': user_id, 'username': username, 'email': email}
@@ -297,15 +440,41 @@ def register():
     
     except Exception as e:
         print(f"Error during registration: {e}")
+        # Rollback transaction if there was an error
+        if connection:
+            try:
+                connection.rollback()
+                print("Transaction rolled back due to error")
+            except Exception as rollback_error:
+                print(f"Error during rollback: {rollback_error}")
         return jsonify({'error': 'Registration failed'}), 500
+    
+    finally:
+        # Always close cursor and connection in finally block
+        if cursor:
+            try:
+                cursor.close()
+            except Exception as e:
+                print(f"Error closing cursor: {e}")
+        
+        if connection:
+            try:
+                connection.close()
+                print("Database connection closed")
+            except Exception as e:
+                print(f"Error closing connection: {e}")
+
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    connection = get_db_connection()
-    if not connection:
-        return jsonify({'error': 'Database connection failed'}), 500
+    connection = None
+    cursor = None
     
     try:
+        connection = get_db_connection()
+        if not connection:
+            return jsonify({'error': 'Database connection failed'}), 500
+        
         data = request.json
         username = data.get('username')
         password = data.get('password')
@@ -317,6 +486,8 @@ def login():
         # Check if we're using SQLite or MySQL
         is_sqlite = hasattr(connection, 'row_factory')
         
+        print(f"Login attempt: username={username}")
+        
         # Find user
         if is_sqlite:
             cursor = connection.cursor()
@@ -324,8 +495,6 @@ def login():
             user_row = cursor.fetchone()
             
             if not user_row:
-                cursor.close()
-                connection.close()
                 return jsonify({'error': 'Invalid username or password'}), 401
                 
             # Convert SQLite row to dict
@@ -341,6 +510,7 @@ def login():
             user = cursor.fetchone()
         
         if not user or not bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+            print(f"Login failed: Invalid credentials for username={username}")
             return jsonify({'error': 'Invalid username or password'}), 401
         
         # Set session
@@ -348,8 +518,7 @@ def login():
         session['username'] = user['username']
         session.permanent = True
         
-        cursor.close()
-        connection.close()
+        print(f"Login successful: username={username}, user_id={user['id']}")
         
         return jsonify({
             'message': 'Login successful',
@@ -358,7 +527,22 @@ def login():
     
     except Exception as e:
         print(f"Error during login: {e}")
-        return jsonify({'error': 'Login failed'}), 500
+        return jsonify({'error': f'Login failed: {str(e)}'}), 500
+    
+    finally:
+        # Always close cursor and connection in finally block
+        if cursor:
+            try:
+                cursor.close()
+            except Exception as e:
+                print(f"Error closing cursor: {e}")
+        
+        if connection:
+            try:
+                connection.close()
+                print("Database connection closed")
+            except Exception as e:
+                print(f"Error closing connection: {e}")
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
@@ -411,11 +595,15 @@ def get_current_user():
 @app.route('/api/investments', methods=['GET'])
 @login_required
 def get_investments():
-    connection = get_db_connection()
-    if not connection:
-        return jsonify({'error': 'Database connection failed'}), 500
+    connection = None
+    cursor = None
     
     try:
+        connection = get_db_connection()
+        if not connection:
+            return jsonify({'error': 'Database connection failed'}), 500
+        
+        print(f"Fetching investments for user_id={session['user_id']}")
         # Check if we're using SQLite or MySQL
         is_sqlite = hasattr(connection, 'row_factory')
         
@@ -457,27 +645,47 @@ def get_investments():
             if inv['created_at']:
                 inv['created_at'] = inv['created_at'] if isinstance(inv['created_at'], str) else inv['created_at'].isoformat()
         
-        cursor.close()
-        connection.close()
+        print(f"Successfully fetched {len(investments)} investments for user_id={session['user_id']}")
         return jsonify(investments)
     
     except Exception as e:
         print(f"Error fetching investments: {e}")
-        return jsonify({'error': 'Failed to fetch investments'}), 500
+        return jsonify({'error': f'Failed to fetch investments: {str(e)}'}), 500
+    
+    finally:
+        # Always close cursor and connection in finally block
+        if cursor:
+            try:
+                cursor.close()
+            except Exception as e:
+                print(f"Error closing cursor: {e}")
+        
+        if connection:
+            try:
+                connection.close()
+                print("Database connection closed")
+            except Exception as e:
+                print(f"Error closing connection: {e}")
 
 @app.route('/api/investments', methods=['POST'])
 @login_required
 def add_investment():
-    connection = get_db_connection()
-    if not connection:
-        return jsonify({'error': 'Database connection failed'}), 500
+    connection = None
+    cursor = None
     
     try:
+        connection = get_db_connection()
+        if not connection:
+            return jsonify({'error': 'Database connection failed'}), 500
+        
         data = request.json
         cursor = connection.cursor()
         
         # Check if we're using SQLite or MySQL
         is_sqlite = hasattr(connection, 'row_factory')
+        
+        # Log the data being inserted
+        print(f"Adding investment: id={data['id']}, name={data['name']}, user_id={session['user_id']}")
         
         if is_sqlite:
             cursor.execute('''
@@ -522,26 +730,53 @@ def add_investment():
                 session['user_id']
             ))
         
+        # Explicitly commit the transaction
         connection.commit()
-        cursor.close()
-        connection.close()
+        print(f"Investment added successfully: id={data['id']}")
         
         return jsonify({'message': 'Investment added successfully'})
     
     except Exception as e:
+        # Log detailed error information
         print(f"Error adding investment: {e}")
-        return jsonify({'error': 'Failed to add investment'}), 500
+        # Rollback transaction if there was an error
+        if connection:
+            try:
+                connection.rollback()
+                print("Transaction rolled back due to error")
+            except Exception as rollback_error:
+                print(f"Error during rollback: {rollback_error}")
+        
+        return jsonify({'error': f'Failed to add investment: {str(e)}'}), 500
+    
+    finally:
+        # Always close cursor and connection in finally block
+        if cursor:
+            try:
+                cursor.close()
+            except Exception as e:
+                print(f"Error closing cursor: {e}")
+        
+        if connection:
+            try:
+                connection.close()
+                print("Database connection closed")
+            except Exception as e:
+                print(f"Error closing connection: {e}")
 
 @app.route('/api/investments/<int:investment_id>', methods=['PUT'])
 @login_required
 def update_investment(investment_id):
     print(f"PUT /api/investments/{investment_id} - Starting update")
-    connection = get_db_connection()
-    if not connection:
-        print(f"PUT /api/investments/{investment_id} - Database connection failed")
-        return jsonify({'error': 'Database connection failed'}), 500
+    connection = None
+    cursor = None
     
     try:
+        connection = get_db_connection()
+        if not connection:
+            print(f"PUT /api/investments/{investment_id} - Database connection failed")
+            return jsonify({'error': 'Database connection failed'}), 500
+        
         # Check if we're using SQLite or MySQL
         is_sqlite = hasattr(connection, 'row_factory')
         
@@ -601,27 +836,50 @@ def update_investment(investment_id):
                 session['user_id']
             ))
         
+        # Explicitly commit the transaction
         connection.commit()
-        cursor.close()
-        connection.close()
-        
         print(f"PUT /api/investments/{investment_id} - Update successful")
         return jsonify({'message': 'Investment updated successfully'})
     
     except Exception as e:
         print(f"PUT /api/investments/{investment_id} - Error updating investment: {e}")
+        # Rollback transaction if there was an error
+        if connection:
+            try:
+                connection.rollback()
+                print(f"PUT /api/investments/{investment_id} - Transaction rolled back due to error")
+            except Exception as rollback_error:
+                print(f"PUT /api/investments/{investment_id} - Error during rollback: {rollback_error}")
         return jsonify({'error': f'Failed to update investment: {str(e)}'}), 500
+    
+    finally:
+        # Always close cursor and connection in finally block
+        if cursor:
+            try:
+                cursor.close()
+            except Exception as e:
+                print(f"PUT /api/investments/{investment_id} - Error closing cursor: {e}")
+        
+        if connection:
+            try:
+                connection.close()
+                print(f"PUT /api/investments/{investment_id} - Database connection closed")
+            except Exception as e:
+                print(f"PUT /api/investments/{investment_id} - Error closing connection: {e}")
 
 @app.route('/api/investments/<int:investment_id>', methods=['DELETE'])
 @login_required
 def delete_investment(investment_id):
     print(f"DELETE /api/investments/{investment_id} - Starting delete")
-    connection = get_db_connection()
-    if not connection:
-        print(f"DELETE /api/investments/{investment_id} - Database connection failed")
-        return jsonify({'error': 'Database connection failed'}), 500
+    connection = None
+    cursor = None
     
     try:
+        connection = get_db_connection()
+        if not connection:
+            print(f"DELETE /api/investments/{investment_id} - Database connection failed")
+            return jsonify({'error': 'Database connection failed'}), 500
+        
         # Check if we're using SQLite or MySQL
         is_sqlite = hasattr(connection, 'row_factory')
         
@@ -647,51 +905,102 @@ def delete_investment(investment_id):
         else:
             cursor.execute('DELETE FROM investments WHERE id = %s AND user_id = %s', 
                           (investment_id, session['user_id']))
-        connection.commit()
-        cursor.close()
-        connection.close()
         
+        # Explicitly commit the transaction
+        connection.commit()
         print(f"DELETE /api/investments/{investment_id} - Delete successful")
         return jsonify({'message': 'Investment deleted successfully'})
     
     except Exception as e:
         print(f"DELETE /api/investments/{investment_id} - Error deleting investment: {e}")
+        # Rollback transaction if there was an error
+        if connection:
+            try:
+                connection.rollback()
+                print(f"DELETE /api/investments/{investment_id} - Transaction rolled back due to error")
+            except Exception as rollback_error:
+                print(f"DELETE /api/investments/{investment_id} - Error during rollback: {rollback_error}")
         return jsonify({'error': f'Failed to delete investment: {str(e)}'}), 500
+    
+    finally:
+        # Always close cursor and connection in finally block
+        if cursor:
+            try:
+                cursor.close()
+            except Exception as e:
+                print(f"DELETE /api/investments/{investment_id} - Error closing cursor: {e}")
+        
+        if connection:
+            try:
+                connection.close()
+                print(f"DELETE /api/investments/{investment_id} - Database connection closed")
+            except Exception as e:
+                print(f"DELETE /api/investments/{investment_id} - Error closing connection: {e}")
 
 @app.route('/api/investments', methods=['DELETE'])
 @login_required
 def clear_investments():
-    connection = get_db_connection()
-    if not connection:
-        return jsonify({'error': 'Database connection failed'}), 500
+    connection = None
+    cursor = None
     
     try:
+        connection = get_db_connection()
+        if not connection:
+            return jsonify({'error': 'Database connection failed'}), 500
+        
         # Check if we're using SQLite or MySQL
         is_sqlite = hasattr(connection, 'row_factory')
         
+        print(f"Clearing all investments for user_id={session['user_id']}")
         cursor = connection.cursor()
         if is_sqlite:
             cursor.execute('DELETE FROM investments WHERE user_id = ?', (session['user_id'],))
         else:
             cursor.execute('DELETE FROM investments WHERE user_id = %s', (session['user_id'],))
-        connection.commit()
-        cursor.close()
-        connection.close()
         
+        # Explicitly commit the transaction
+        connection.commit()
+        print(f"All investments cleared successfully for user_id={session['user_id']}")
         return jsonify({'message': 'All investments cleared successfully'})
     
     except Exception as e:
         print(f"Error clearing investments: {e}")
-        return jsonify({'error': 'Failed to clear investments'}), 500
+        # Rollback transaction if there was an error
+        if connection:
+            try:
+                connection.rollback()
+                print("Transaction rolled back due to error")
+            except Exception as rollback_error:
+                print(f"Error during rollback: {rollback_error}")
+        return jsonify({'error': f'Failed to clear investments: {str(e)}'}), 500
+    
+    finally:
+        # Always close cursor and connection in finally block
+        if cursor:
+            try:
+                cursor.close()
+            except Exception as e:
+                print(f"Error closing cursor: {e}")
+        
+        if connection:
+            try:
+                connection.close()
+                print("Database connection closed")
+            except Exception as e:
+                print(f"Error closing connection: {e}")
 
 @app.route('/api/export', methods=['GET'])
 @login_required
 def export_csv():
-    connection = get_db_connection()
-    if not connection:
-        return jsonify({'error': 'Database connection failed'}), 500
+    connection = None
+    cursor = None
     
     try:
+        connection = get_db_connection()
+        if not connection:
+            return jsonify({'error': 'Database connection failed'}), 500
+        
+        print(f"Exporting CSV data for user_id={session['user_id']}")
         # Check if we're using SQLite or MySQL
         is_sqlite = hasattr(connection, 'row_factory')
         
@@ -741,14 +1050,27 @@ def export_csv():
             ]
             csv_data.append(','.join(row))
         
-        cursor.close()
-        connection.close()
-        
+        print(f"Successfully exported {len(investments)} investments to CSV for user_id={session['user_id']}")
         return jsonify({'csv_data': '\n'.join(csv_data)})
     
     except Exception as e:
         print(f"Error exporting data: {e}")
-        return jsonify({'error': 'Failed to export data'}), 500
+        return jsonify({'error': f'Failed to export data: {str(e)}'}), 500
+    
+    finally:
+        # Always close cursor and connection in finally block
+        if cursor:
+            try:
+                cursor.close()
+            except Exception as e:
+                print(f"Error closing cursor: {e}")
+        
+        if connection:
+            try:
+                connection.close()
+                print("Database connection closed")
+            except Exception as e:
+                print(f"Error closing connection: {e}")
 
 if __name__ == '__main__':
     create_table()

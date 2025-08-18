@@ -4,6 +4,7 @@ class InterestCalculator {
         this.history = [];
         this.currentEditId = null;
         this.apiBaseUrl = window.location.origin + '/api';
+        this.currentUser = null;
         this.init();
     }
 
@@ -11,13 +12,42 @@ class InterestCalculator {
         this.setupEventListeners();
         this.setDefaultDate();
         this.loadHistory();
+        this.fetchCurrentUser();
         // Don't clear results initially - will be set after loading history
+    }
+    
+    fetchCurrentUser() {
+        fetch(`${this.apiBaseUrl}/user`, {
+            method: 'GET',
+            credentials: 'include'
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            }
+            throw new Error('Not authenticated');
+        })
+        .then(data => {
+            this.currentUser = data.user;
+            document.getElementById('username').textContent = this.currentUser.username;
+        })
+        .catch(error => {
+            console.error('Error fetching user:', error);
+            // Redirect to login page if not authenticated
+            window.location.href = '/login';
+        });
     }
 
     setupEventListeners() {
         // Add Investment button
         document.getElementById('addInvestmentBtn').addEventListener('click', () => {
             this.addInvestment();
+        });
+        
+        // Logout button
+        document.getElementById('logoutBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.logout();
         });
 
         // Calculate button in edit modal
@@ -95,6 +125,22 @@ class InterestCalculator {
             field.style.backgroundColor = '#f7fafc';
         }
     }
+    
+    logout() {
+        fetch(`${this.apiBaseUrl}/logout`, {
+            method: 'POST',
+            credentials: 'include'
+        })
+        .then(response => {
+            if (response.ok) {
+                // Redirect to login page after successful logout
+                window.location.href = '/login';
+            }
+        })
+        .catch(error => {
+            console.error('Logout error:', error);
+        });
+    }
 
     async addInvestment() {
         try {
@@ -144,7 +190,8 @@ class InterestCalculator {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(investment)
+                body: JSON.stringify(investment),
+                credentials: 'include'
             });
 
             if (!response.ok) {
@@ -260,7 +307,8 @@ class InterestCalculator {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(updateData)
+                body: JSON.stringify(updateData),
+                credentials: 'include'
             });
 
             if (!response.ok) {
@@ -382,7 +430,9 @@ class InterestCalculator {
 
     async loadHistory() {
         try {
-            const response = await fetch(`${this.apiBaseUrl}/investments`);
+            const response = await fetch(`${this.apiBaseUrl}/investments`, {
+                credentials: 'include'
+            });
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
@@ -601,7 +651,8 @@ class InterestCalculator {
         if (confirm(`Are you sure you want to delete the investment "${investmentName}"? This action cannot be undone.`)) {
             try {
                 const response = await fetch(`${this.apiBaseUrl}/investments/${investmentId}`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    credentials: 'include'
                 });
 
                 if (!response.ok) {
@@ -624,7 +675,8 @@ class InterestCalculator {
         if (confirm('Are you sure you want to clear all investment history? This action cannot be undone.')) {
             try {
                 const response = await fetch(`${this.apiBaseUrl}/investments`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    credentials: 'include'
                 });
 
                 if (!response.ok) {
@@ -643,7 +695,9 @@ class InterestCalculator {
 
     async exportToCSV() {
         try {
-            const response = await fetch(`${this.apiBaseUrl}/export`);
+            const response = await fetch(`${this.apiBaseUrl}/export`, {
+                credentials: 'include'
+            });
             if (!response.ok) {
                 throw new Error('Failed to export data');
             }

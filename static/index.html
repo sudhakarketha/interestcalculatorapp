@@ -153,61 +153,111 @@
                     </div>
 
                     <div class="results-section">
-                        <h2>Calculation Results</h2>
-                        <div class="selected-investment-info" id="selectedInvestmentInfo" style="display: none;">
-                            <p><i class="fas fa-info-circle"></i> <span id="selectedInvestmentName">No investment
-                                    selected</span></p>
-                            <p class="investment-details" id="selectedInvestmentDetails"></p>
-                        </div>
-                        <div class="results-grid">
-                            <div class="result-card">
-                                <div class="result-icon">
-                                    <i class="fas fa-chart-line"></i>
+                        <div class="results-section">
+                            <h2>Calculation Results</h2>
+                            <div class="selected-investment-info" id="selectedInvestmentInfo" style="display: none;">
+                                <p><i class="fas fa-info-circle"></i> <span id="selectedInvestmentName">No investment
+                                        selected</span></p>
+                                <p class="investment-details" id="selectedInvestmentDetails"></p>
+                            </div>
+                            
+                            <!-- Interest cards row -->
+                            <div class="results-grid interest-row">
+                                <div class="result-card">
+                                    <div class="result-icon">
+                                        <i class="fas fa-chart-line"></i>
+                                    </div>
+                                    <div class="result-content">
+                                        <h3>Total Simple Interest</h3>
+                                        <p class="result-value" id="simpleInterest">₹0.00</p>
+                                    </div>
                                 </div>
-                                <div class="result-content">
-                                    <h3>Simple Interest</h3>
-                                    <p class="result-value" id="simpleInterest">$0.00</p>
+
+                                <div class="result-card">
+                                    <div class="result-icon">
+                                        <i class="fas fa-chart-area"></i>
+                                    </div>
+                                    <div class="result-content">
+                                        <h3>Total Compound Interest</h3>
+                                        <p class="result-value" id="compoundInterest">₹0.00</p>
+                                    </div>
                                 </div>
                             </div>
-
-                            <div class="result-card">
-                                <div class="result-icon">
-                                    <i class="fas fa-chart-area"></i>
+                            
+                            <!-- Loan columns container -->
+                            <div class="loan-columns-container">
+                                <!-- Took Loan Column -->
+                                <div class="loan-column took-loan-column">
+                                    <h3 class="column-header">Took Loan</h3>
+                                    <div class="result-card">
+                                        <div class="result-icon">
+                                            <i class="fas fa-hand-holding-usd"></i>
+                                        </div>
+                                        <div class="result-content">
+                                            <h3>Total Took Principal</h3>
+                                            <p class="result-value" id="tookLoanPrincipal">₹0.00</p>
+                                            <small style="color: #666; font-size: 12px;">Principal Amount</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="result-card">
+                                        <div class="result-icon">
+                                            <i class="fas fa-percentage"></i>
+                                        </div>
+                                        <div class="result-content">
+                                            <h3>Took Interest</h3>
+                                            <p class="result-value" id="tookLoanInterest">₹0.00</p>
+                                            <small style="color: #666; font-size: 12px;">Simple Interest</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="result-card">
+                                        <div class="result-icon">
+                                            <i class="fas fa-hand-holding-usd"></i>
+                                        </div>
+                                        <div class="result-content">
+                                            <h3>Total took amount</h3>
+                                            <p class="result-value" id="totalTookLoan">₹0.00</p>
+                                            <small style="color: #666; font-size: 12px;">Principal + Simple Interest</small>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="result-content">
-                                    <h3>Compound Interest</h3>
-                                    <p class="result-value" id="compoundInterest">$0.00</p>
-                                </div>
-                            </div>
-
-                            <div class="result-card">
-                                <div class="result-icon">
-                                    <i class="fas fa-dollar-sign"></i>
-                                </div>
-                                <div class="result-content">
-                                    <h3>Total (Simple)</h3>
-                                    <p class="result-value" id="totalSimple">$0.00</p>
-                                </div>
-                            </div>
-
-                            <div class="result-card">
-                                <div class="result-icon">
-                                    <i class="fas fa-coins"></i>
-                                </div>
-                                <div class="result-content">
-                                    <h3>Total (Compound)</h3>
-                                    <p class="result-value" id="totalCompound">$0.00</p>
-                                </div>
-                            </div>
-
-                            <div class="result-card">
-                                <div class="result-icon">
-                                    <i class="fas fa-calculator"></i>
-                                </div>
-                                <div class="result-content">
-                                    <h3>Total Amount</h3>
-                                    <p class="result-value" id="totalAmount">$0.00</p>
-                                    <small style="color: #666; font-size: 12px;">Principal + Simple Interest</small>
+                                
+                                <!-- Gave Loan Column -->
+                                <div class="loan-column gave-loan-column">
+                                    <h3 class="column-header">Gave Loan</h3>
+                                    <div class="result-card">
+                                        <div class="result-icon">
+                                            <i class="fas fa-money-bill-wave"></i>
+                                        </div>
+                                        <div class="result-content">
+                                            <h3>Total Gave Principal</h3>
+                                            <p class="result-value" id="gaveLoanPrincipal">₹0.00</p>
+                                            <small style="color: #666; font-size: 12px;">Principal Amount</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="result-card">
+                                        <div class="result-icon">
+                                            <i class="fas fa-percentage"></i>
+                                        </div>
+                                        <div class="result-content">
+                                            <h3>Gave Interest</h3>
+                                            <p class="result-value" id="gaveLoanInterest">₹0.00</p>
+                                            <small style="color: #666; font-size: 12px;">Simple Interest</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="result-card">
+                                        <div class="result-icon">
+                                            <i class="fas fa-money-bill-wave"></i>
+                                        </div>
+                                        <div class="result-content">
+                                            <h3>Total Gave Amount</h3>
+                                            <p class="result-value" id="totalGaveLoan">₹0.00</p>
+                                            <small style="color: #666; font-size: 12px;">Principal + Simple Interest</small>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -376,12 +376,29 @@ class InterestCalculator {
             // Show calculated results for a specific investment
             document.getElementById('simpleInterest').textContent = this.formatCurrency(results.simpleInterest);
             document.getElementById('compoundInterest').textContent = this.formatCurrency(results.compoundInterest);
-            document.getElementById('totalSimple').textContent = this.formatCurrency(results.totalSimple);
-            document.getElementById('totalCompound').textContent = this.formatCurrency(results.totalCompound);
-
-            // Calculate and display total amount (principal + simple interest)
+            
+            // Calculate and display total amount based on interest type
             const totalAmount = results.totalSimple;
-            document.getElementById('totalAmount').textContent = this.formatCurrency(totalAmount);
+            const principal = selectedInvestment.principal;
+            const simpleInterest = results.simpleInterest;
+            const interestType = selectedInvestment.interest_type || 'taken';
+            
+            if (interestType === 'taken') {
+                document.getElementById('tookLoanPrincipal').textContent = this.formatCurrency(principal);
+                document.getElementById('tookLoanInterest').textContent = this.formatCurrency(simpleInterest);
+                document.getElementById('gaveLoanPrincipal').textContent = this.formatCurrency(0);
+                document.getElementById('gaveLoanInterest').textContent = this.formatCurrency(0);
+                document.getElementById('totalTookLoan').textContent = this.formatCurrency(totalAmount);
+                document.getElementById('totalGaveLoan').textContent = this.formatCurrency(0);
+            } else if (interestType === 'given') {
+                document.getElementById('tookLoanPrincipal').textContent = this.formatCurrency(0);
+                document.getElementById('tookLoanInterest').textContent = this.formatCurrency(0);
+                document.getElementById('gaveLoanPrincipal').textContent = this.formatCurrency(principal);
+                document.getElementById('gaveLoanInterest').textContent = this.formatCurrency(simpleInterest);
+                document.getElementById('totalTookLoan').textContent = this.formatCurrency(0);
+                document.getElementById('totalGaveLoan').textContent = this.formatCurrency(totalAmount);
+            }
+            
         } else if (selectedInvestment && selectedInvestment.end_date) {
             // Show existing calculated results from database
             const months = parseFloat(selectedInvestment.months) || 0;
@@ -389,22 +406,64 @@ class InterestCalculator {
             const compoundInterest = parseFloat(selectedInvestment.compound_interest) || 0;
             const totalSimple = parseFloat(selectedInvestment.total_simple) || selectedInvestment.principal;
             const totalCompound = parseFloat(selectedInvestment.total_compound) || selectedInvestment.principal;
+            const principal = parseFloat(selectedInvestment.principal) || 0;
+            const interestType = selectedInvestment.interest_type || 'taken';
 
             document.getElementById('simpleInterest').textContent = this.formatCurrency(simpleInterest);
             document.getElementById('compoundInterest').textContent = this.formatCurrency(compoundInterest);
-            document.getElementById('totalSimple').textContent = this.formatCurrency(totalSimple);
-            document.getElementById('totalCompound').textContent = this.formatCurrency(totalCompound);
-            document.getElementById('totalAmount').textContent = this.formatCurrency(totalSimple);
+            // Removed references to totalSimple and totalCompound elements
+            
+            // Display based on interest type
+            if (interestType === 'taken') {
+                document.getElementById('tookLoanPrincipal').textContent = this.formatCurrency(principal);
+                document.getElementById('tookLoanInterest').textContent = this.formatCurrency(simpleInterest);
+                document.getElementById('gaveLoanPrincipal').textContent = this.formatCurrency(0);
+                document.getElementById('gaveLoanInterest').textContent = this.formatCurrency(0);
+                document.getElementById('totalTookLoan').textContent = this.formatCurrency(totalSimple);
+                document.getElementById('totalGaveLoan').textContent = this.formatCurrency(0);
+            } else if (interestType === 'given') {
+                document.getElementById('tookLoanPrincipal').textContent = this.formatCurrency(0);
+                document.getElementById('tookLoanInterest').textContent = this.formatCurrency(0);
+                document.getElementById('gaveLoanPrincipal').textContent = this.formatCurrency(principal);
+                document.getElementById('gaveLoanInterest').textContent = this.formatCurrency(simpleInterest);
+                document.getElementById('totalTookLoan').textContent = this.formatCurrency(0);
+                document.getElementById('totalGaveLoan').textContent = this.formatCurrency(totalSimple);
+            }
+            
         } else if (selectedInvestment && !selectedInvestment.end_date) {
             // Show only principal for investments without end date
             document.getElementById('simpleInterest').textContent = this.formatCurrency(0);
             document.getElementById('compoundInterest').textContent = this.formatCurrency(0);
-            document.getElementById('totalSimple').textContent = this.formatCurrency(selectedInvestment.principal);
-            document.getElementById('totalCompound').textContent = this.formatCurrency(selectedInvestment.principal);
-            document.getElementById('totalAmount').textContent = this.formatCurrency(selectedInvestment.principal);
+            // Removed references to totalSimple and totalCompound elements
+            
+            const interestType = selectedInvestment.interest_type || 'taken';
+            if (interestType === 'taken') {
+                document.getElementById('tookLoanPrincipal').textContent = this.formatCurrency(selectedInvestment.principal);
+                document.getElementById('tookLoanInterest').textContent = this.formatCurrency(0);
+                document.getElementById('gaveLoanPrincipal').textContent = this.formatCurrency(0);
+                document.getElementById('gaveLoanInterest').textContent = this.formatCurrency(0);
+                document.getElementById('totalTookLoan').textContent = this.formatCurrency(selectedInvestment.principal);
+                document.getElementById('totalGaveLoan').textContent = this.formatCurrency(0);
+            } else if (interestType === 'given') {
+                document.getElementById('tookLoanPrincipal').textContent = this.formatCurrency(0);
+                document.getElementById('tookLoanInterest').textContent = this.formatCurrency(0);
+                document.getElementById('gaveLoanPrincipal').textContent = this.formatCurrency(selectedInvestment.principal);
+                document.getElementById('gaveLoanInterest').textContent = this.formatCurrency(0);
+                document.getElementById('totalTookLoan').textContent = this.formatCurrency(0);
+                document.getElementById('totalGaveLoan').textContent = this.formatCurrency(selectedInvestment.principal);
+            }
+            
         } else {
-            // Show combined results from all investments
-            this.updateResultsForAllInvestments();
+            // Reset all values if no investment is selected
+            document.getElementById('simpleInterest').textContent = this.formatCurrency(0);
+            document.getElementById('compoundInterest').textContent = this.formatCurrency(0);
+            // Removed references to totalSimple and totalCompound elements
+            document.getElementById('tookLoanPrincipal').textContent = this.formatCurrency(0);
+            document.getElementById('tookLoanInterest').textContent = this.formatCurrency(0);
+            document.getElementById('gaveLoanPrincipal').textContent = this.formatCurrency(0);
+            document.getElementById('gaveLoanInterest').textContent = this.formatCurrency(0);
+            document.getElementById('totalTookLoan').textContent = this.formatCurrency(0);
+            document.getElementById('totalGaveLoan').textContent = this.formatCurrency(0);
         }
     }
 
@@ -412,40 +471,51 @@ class InterestCalculator {
         // Calculate combined totals from all investments
         let totalSimpleInterest = 0;
         let totalCompoundInterest = 0;
-        let totalSimple = 0;
-        let totalCompound = 0;
-        let totalPrincipal = 0;
+        
+        // Separate totals for took loan and gave loan
+        let totalTookLoanPrincipal = 0;
+        let totalTookLoanInterest = 0;
+        let totalTookLoanSimple = 0;
+        let totalGaveLoanPrincipal = 0;
+        let totalGaveLoanInterest = 0;
+        let totalGaveLoanSimple = 0;
 
         this.history.forEach(inv => {
             const simpleInterest = parseFloat(inv.simple_interest) || 0;
             const compoundInterest = parseFloat(inv.compound_interest) || 0;
             const totalSimpleInv = parseFloat(inv.total_simple) || inv.principal;
             const totalCompoundInv = parseFloat(inv.total_compound) || inv.principal;
+            const principal = parseFloat(inv.principal) || 0;
+            const interestType = inv.interest_type || 'taken';
 
             totalSimpleInterest += simpleInterest;
             totalCompoundInterest += compoundInterest;
-            totalSimple += totalSimpleInv;
-            totalCompound += totalCompoundInv;
-            totalPrincipal += inv.principal;
+            // Removed references to undeclared variables totalSimple, totalCompound, and totalPrincipal
+            
+            // Add to the appropriate loan type total
+            if (interestType === 'taken') {
+                totalTookLoanPrincipal += principal;
+                totalTookLoanInterest += simpleInterest;
+                totalTookLoanSimple += totalSimpleInv;
+            } else if (interestType === 'given') {
+                totalGaveLoanPrincipal += principal;
+                totalGaveLoanInterest += simpleInterest;
+                totalGaveLoanSimple += totalSimpleInv;
+            }
         });
 
         // Display combined results
         document.getElementById('simpleInterest').textContent = this.formatCurrency(totalSimpleInterest);
         document.getElementById('compoundInterest').textContent = this.formatCurrency(totalCompoundInterest);
-        document.getElementById('totalSimple').textContent = this.formatCurrency(totalSimple);
-        document.getElementById('totalCompound').textContent = this.formatCurrency(totalCompound);
-        document.getElementById('totalAmount').textContent = this.formatCurrency(totalSimple);
-
-        // Show info about all investments
-        const infoDiv = document.getElementById('selectedInvestmentInfo');
-        const nameSpan = document.getElementById('selectedInvestmentName');
-        const detailsSpan = document.getElementById('selectedInvestmentDetails');
-
-        if (infoDiv && nameSpan && detailsSpan) {
-            nameSpan.textContent = `All Investments (${this.history.length} total)`;
-            detailsSpan.textContent = `Combined results from all investments in the portfolio`;
-            infoDiv.style.display = 'block';
-        }
+        // Removed references to totalSimple and totalCompound elements
+        
+        // Display took loan and gave loan totals
+        document.getElementById('tookLoanPrincipal').textContent = this.formatCurrency(totalTookLoanPrincipal);
+        document.getElementById('tookLoanInterest').textContent = this.formatCurrency(totalTookLoanInterest);
+        document.getElementById('gaveLoanPrincipal').textContent = this.formatCurrency(totalGaveLoanPrincipal);
+        document.getElementById('gaveLoanInterest').textContent = this.formatCurrency(totalGaveLoanInterest);
+        document.getElementById('totalTookLoan').textContent = this.formatCurrency(totalTookLoanSimple);
+        document.getElementById('totalGaveLoan').textContent = this.formatCurrency(totalGaveLoanSimple);
     }
 
     async loadHistory() {

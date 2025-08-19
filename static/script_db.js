@@ -615,9 +615,23 @@ class InterestCalculator {
                 const investment = this.history.find(inv => inv.id === parseInt(id));
                 console.log('Row clicked for investment:', investment?.name); // Debug log
                 if (investment) {
-                    this.selectInvestment(investment);
+                    // If the click is on the name cell (first cell), show totals for all investments with that name
+                    if (e.target.cellIndex === 0) {
+                        this.selectInvestmentByName(investment);
+                    } else {
+                        // Otherwise, show details for just this specific investment
+                        this.selectSingleInvestment(investment);
+                    }
                 }
             };
+            
+            // Add special styling to the name cell to indicate it's clickable for totals
+            const nameCell = row.cells[0];
+            if (nameCell) {
+                nameCell.style.fontWeight = 'bold';
+                nameCell.style.color = '#4a5568';
+                nameCell.title = 'Click to see totals for all investments with this name';
+            }
 
             // Double-click to deselect and show all investments
             row.ondblclick = (e) => {
@@ -636,8 +650,16 @@ class InterestCalculator {
         });
     }
 
+    // This method is kept for backward compatibility
     selectInvestment(investment) {
         console.log('selectInvestment called for:', investment.name); // Debug log
+        // By default, show the single investment details
+        this.selectSingleInvestment(investment);
+    }
+
+    // Show details for a specific investment
+    selectSingleInvestment(investment) {
+        console.log('selectSingleInvestment called for:', investment.name); // Debug log
 
         // Highlight the selected row
         const tbody = document.getElementById('historyTableBody');
@@ -650,8 +672,7 @@ class InterestCalculator {
 
         // Find and highlight the clicked row
         const clickedRow = Array.from(rows).find(row => {
-            const nameCell = row.cells[0];
-            return nameCell && nameCell.textContent === investment.name;
+            return row.getAttribute('data-id') === investment.id.toString();
         });
 
         if (clickedRow) {
@@ -659,18 +680,55 @@ class InterestCalculator {
             clickedRow.style.borderLeft = '4px solid #667eea';
         }
 
-        // Update results based on the selected investment
+        // Update results based on the selected investment only
         this.updateResults(null, investment);
 
         // Update the selected investment info display
         this.updateSelectedInvestmentInfo(investment);
-
+        
         // Show a brief message about what's displayed
         if (investment.end_date) {
-            this.showModal(`Showing results for "${investment.name}" - ${investment.months} months (Double-click to show all investments)`, 'info');
+            this.showModal(`Showing results for this specific "${investment.name}" investment - ${investment.months} months. Click on the name to see totals for all "${investment.name}" investments. Double-click to show all investments.`, 'info');
         } else {
-            this.showModal(`Selected "${investment.name}" - Add end date to calculate interest (Double-click to show all investments)`, 'info');
+            this.showModal(`Selected this specific "${investment.name}" investment. Click on the name to see totals for all "${investment.name}" investments. Double-click to show all investments.`, 'info');
         }
+    }
+
+    // Show totals for all investments with the same name
+    selectInvestmentByName(investment) {
+        console.log('selectInvestmentByName called for:', investment.name); // Debug log
+
+        // Highlight all rows with the same name
+        const tbody = document.getElementById('historyTableBody');
+        const rows = tbody.querySelectorAll('tr');
+
+        rows.forEach(row => {
+            row.style.backgroundColor = '';
+            row.style.borderLeft = '';
+        });
+
+        // Find and highlight all rows with the same name
+        const nameRows = Array.from(rows).filter(row => {
+            const nameCell = row.cells[0];
+            return nameCell && nameCell.textContent === investment.name;
+        });
+
+        nameRows.forEach(row => {
+            row.style.backgroundColor = '#e6f3ff';
+            row.style.borderLeft = '4px solid #667eea';
+        });
+
+        // Find all investments with the same name
+        const nameInvestments = this.history.filter(inv => inv.name === investment.name);
+        
+        // Calculate total took and gave amounts for all investments with this name
+        this.updateResultsForNameInvestments(nameInvestments);
+
+        // Update the selected investment info display
+        this.updateSelectedInvestmentInfo(investment);
+        
+        // Show a brief message about what's displayed
+        this.showModal(`Showing TOTAL results for all "${investment.name}" investments (${nameInvestments.length} found). Click on any row outside the name to see individual investment details. Double-click to show all investments.`, 'info');
     }
 
     updateSelectedInvestmentInfo(investment) {
@@ -679,15 +737,28 @@ class InterestCalculator {
         const detailsSpan = document.getElementById('selectedInvestmentDetails');
 
         if (investment) {
+            // Find all investments with the same name
+            const nameInvestments = this.history.filter(inv => inv.name === investment.name);
+            
             nameSpan.textContent = investment.name;
             
-            const interestTypeText = investment.interest_type === 'taken' ? 'Interest Taken (Loan)' : 'Interest Given (Lent)';
-
-            if (investment.end_date) {
-                const months = parseFloat(investment.months) || 0;
-                detailsSpan.textContent = `Principal: ${this.formatCurrency(investment.principal)} | Rate: ${investment.rate}%/month | Type: ${interestTypeText} | Period: ${months.toFixed(2)} months`;
+            if (nameInvestments.length > 1) {
+                // Show summary for multiple investments with the same name
+                const totalCount = nameInvestments.length;
+                const tookCount = nameInvestments.filter(inv => inv.interest_type === 'taken').length;
+                const gaveCount = nameInvestments.filter(inv => inv.interest_type === 'given').length;
+                
+                detailsSpan.textContent = `${totalCount} investments found | ${tookCount} loans taken | ${gaveCount} loans given | Showing total amounts for all investments with this name`;
             } else {
-                detailsSpan.textContent = `Principal: ${this.formatCurrency(investment.principal)} | Rate: ${investment.rate}%/month | Type: ${interestTypeText} | Start Date: ${investment.start_date}`;
+                // Show details for single investment
+                const interestTypeText = investment.interest_type === 'taken' ? 'Interest Taken (Loan)' : 'Interest Given (Lent)';
+
+                if (investment.end_date) {
+                    const months = parseFloat(investment.months) || 0;
+                    detailsSpan.textContent = `Principal: ${this.formatCurrency(investment.principal)} | Rate: ${investment.rate}%/month | Type: ${interestTypeText} | Period: ${months.toFixed(2)} months`;
+                } else {
+                    detailsSpan.textContent = `Principal: ${this.formatCurrency(investment.principal)} | Rate: ${investment.rate}%/month | Type: ${interestTypeText} | Start Date: ${investment.start_date}`;
+                }
             }
 
             infoDiv.style.display = 'block';
@@ -711,6 +782,55 @@ class InterestCalculator {
 
         // Show a brief message
         this.showModal('Showing combined results from all investments', 'info');
+    }
+    
+    updateResultsForNameInvestments(investments) {
+        // Calculate combined totals for all investments with the same name
+        let totalSimpleInterest = 0;
+        let totalCompoundInterest = 0;
+        
+        // Separate totals for took loan and gave loan
+        let totalTookLoanPrincipal = 0;
+        let totalTookLoanInterest = 0;
+        let totalTookLoanSimple = 0;
+        let totalGaveLoanPrincipal = 0;
+        let totalGaveLoanInterest = 0;
+        let totalGaveLoanSimple = 0;
+
+        investments.forEach(inv => {
+            const simpleInterest = parseFloat(inv.simple_interest) || 0;
+            const compoundInterest = parseFloat(inv.compound_interest) || 0;
+            const totalSimpleInv = parseFloat(inv.total_simple) || inv.principal;
+            const totalCompoundInv = parseFloat(inv.total_compound) || inv.principal;
+            const principal = parseFloat(inv.principal) || 0;
+            const interestType = inv.interest_type || 'taken';
+
+            totalSimpleInterest += simpleInterest;
+            totalCompoundInterest += compoundInterest;
+            
+            // Add to the appropriate loan type total
+            if (interestType === 'taken') {
+                totalTookLoanPrincipal += principal;
+                totalTookLoanInterest += simpleInterest;
+                totalTookLoanSimple += totalSimpleInv;
+            } else if (interestType === 'given') {
+                totalGaveLoanPrincipal += principal;
+                totalGaveLoanInterest += simpleInterest;
+                totalGaveLoanSimple += totalSimpleInv;
+            }
+        });
+
+        // Display combined results
+        document.getElementById('simpleInterest').textContent = this.formatCurrency(totalSimpleInterest);
+        document.getElementById('compoundInterest').textContent = this.formatCurrency(totalCompoundInterest);
+        
+        // Display took loan and gave loan totals
+        document.getElementById('tookLoanPrincipal').textContent = this.formatCurrency(totalTookLoanPrincipal);
+        document.getElementById('tookLoanInterest').textContent = this.formatCurrency(totalTookLoanInterest);
+        document.getElementById('gaveLoanPrincipal').textContent = this.formatCurrency(totalGaveLoanPrincipal);
+        document.getElementById('gaveLoanInterest').textContent = this.formatCurrency(totalGaveLoanInterest);
+        document.getElementById('totalTookLoan').textContent = this.formatCurrency(totalTookLoanSimple);
+        document.getElementById('totalGaveLoan').textContent = this.formatCurrency(totalGaveLoanSimple);
     }
 
     async deleteInvestment(investmentId, investmentName) {
